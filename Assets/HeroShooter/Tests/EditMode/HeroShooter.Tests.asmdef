@@ -1,0 +1,13 @@
+{
+  "name": "HeroShooter.Tests",
+  "rootNamespace": "Engchanok.HeroShooter.Tests",
+  "references": [
+    "HeroShooter.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

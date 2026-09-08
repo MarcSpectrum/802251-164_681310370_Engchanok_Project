@@ -1,0 +1,21 @@
+using NUnit.Framework;
+namespace Engchanok.StrategyGame.Tests
+{
+    public sealed class MatchModelTests
+    {
+        [Test] public void SpendingIsAtomicAndRejectsNegativeAmounts()
+        { var wallet = new Wallet(100); Assert.IsFalse(wallet.TrySpend(101)); Assert.IsFalse(wallet.TrySpend(-1)); Assert.AreEqual(100, wallet.Minerals); Assert.IsTrue(wallet.TrySpend(100)); Assert.AreEqual(0, wallet.Minerals); }
+        [Test] public void MiningPreservesTotalAndCapsFinalLoad()
+        { var stock = new MineralStock(25); var wallet = new Wallet(0); wallet.Deposit(stock.Extract(20)); wallet.Deposit(stock.Extract(20)); Assert.AreEqual(25, wallet.Minerals); Assert.AreEqual(0, stock.Extract(20)); }
+        [Test] public void ProductionWaitsForTimeAndSuccessfulSpawn()
+        { var wallet = new Wallet(100); var q = new ProductionQueue(); Assert.IsTrue(q.Enqueue(wallet, 50, 2)); Assert.IsTrue(q.Enqueue(wallet, 50, 3)); q.Tick(1); Assert.IsFalse(q.Complete()); q.Tick(10); Assert.IsTrue(q.Ready); Assert.AreEqual(2, q.Count); Assert.IsTrue(q.Complete()); Assert.AreEqual(3, q.Remaining); }
+        [Test] public void FullQueueDoesNotCharge()
+        { var w = new Wallet(100); var q = new ProductionQueue(); for(int i=0;i<5;i++) Assert.IsTrue(q.Enqueue(w,10,1)); Assert.IsFalse(q.Enqueue(w,10,1)); Assert.AreEqual(50,w.Minerals); }
+        [Test] public void HealthClampsDeathAndRejectsHealingThroughDamage()
+        { var h = new HealthModel(100); Assert.AreEqual(0,h.Damage(-10)); Assert.AreEqual(100,h.Damage(200)); Assert.IsFalse(h.IsAlive); Assert.AreEqual(0,h.Damage(20)); }
+        [Test] public void FiveClearedWavesWinOnlyAfterLastEnemy()
+        { var w = new WaveState(5, 2, 1); Assert.IsFalse(w.Tick(1,0,true)); for(int i=1;i<=5;i++) { Assert.IsTrue(w.Tick(1,0,true)); Assert.AreEqual(i,w.Wave); w.Tick(100,1,true); Assert.AreEqual(MatchResult.Playing,w.Result); w.Tick(0,0,true); } Assert.AreEqual(MatchResult.Victory,w.Result); }
+        [Test] public void HeadquartersDeathOverridesFinalWaveClear()
+        { var w = new WaveState(1,0,0); w.Tick(0,0,true); w.Tick(0,0,false); Assert.AreEqual(MatchResult.Defeat,w.Result); Assert.IsFalse(w.Tick(100,0,true)); }
+    }
+}

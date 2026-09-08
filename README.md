@@ -1,46 +1,40 @@
-# Hero Shooter Prototype
+# Outpost — Strategy Survival
 
-A reusable third-person, movement-focused shooter foundation built with Unity 6 and URP. The current project is a deliberately sparse solo sandbox: a baseplate, a configurable player controller, a semi-automatic hitscan rifle, and respawning target dummies.
+A single-player sci-fi RTS prototype built with Unity 6000.3.22f1 and URP. Mine minerals, construct barracks and turrets, command soldiers, and defend headquarters through five waves.
 
-## Open and generate the project
+## Play
+1. Open this folder through Unity Hub using Unity 6000.3.22f1.
+2. Wait for import and compilation. Press Play to start from MainMenu.
+3. Choose **Deploy to Outpost**. Select workers, then right-click the teal mineral deposits.
+4. Use HUD buttons to place structures. Select headquarters to train workers, or a barracks to train soldiers.
 
-1. Open this repository folder from Unity Hub with Unity `6000.3.22f1`.
-2. Wait for scripts and packages to finish importing.
-3. Choose **Hero Shooter → Rebuild Starter Project** if the generated scenes or prefabs need to be restored.
-4. Press Play from any scene. The Editor always starts Play Mode from MainMenu.
-
-The rebuild command is the source of truth for generated materials, data assets, prefabs, scenes, startup configuration, and Build Settings. It replaces the generated starter prefabs and scenes when explicitly run; gameplay source files are not rewritten.
+Destroy all five enemy waves to win. Losing headquarters ends the match.
 
 ## Controls
+| Input | Action |
+| --- | --- |
+| Left click / drag | Select an entity / multiple units |
+| Shift + selection | Add to selection |
+| Right click | Move, attack with soldiers, or gather with workers |
+| WASD / arrows | Pan camera |
+| Mouse wheel | Zoom |
+| Escape | Cancel placement, otherwise pause/resume |
+| Right click during placement | Cancel placement |
 
-- `WASD` / arrow keys — move
-- Mouse — orbit camera
-- `Left Shift` — sprint
-- `Space` — jump
-- `Q` — directional dash
-- Hold right mouse — shoulder aim
-- Click left mouse — fire one shot
-- `R` — reload
-- `Escape` — pause or resume
+Build previews turn green on valid ground. Buildings must fit inside the headquarters perimeter and leave marked approach lanes clear. Production queues hold up to five units.
 
-The crosshair is white and open normally. It tightens, turns red, and gains a center dot when the center aim ray is over a live damageable target.
+## Generate, test, build
+- **Strategy Game → Rebuild Prototype** regenerates scenes and prefabs. Save your work first; existing tuning and materials are preserved.
+- **Window → General → Test Runner** runs Edit Mode rule tests and Play Mode integration tests.
+- **Strategy Game → Build Windows Development** builds the existing scenes to `Builds/Windows/OutpostStrategy.exe`. It does not regenerate content.
+- Tune the game through `Assets/StrategyGame/Data/DefaultStrategy.asset`.
 
-## Project structure
+Build scenes: `Assets/StrategyGame/Scenes/MainMenu.unity` and `Assets/StrategyGame/Scenes/Survival.unity`. SampleScene remains unused.
 
-- `Assets/HeroShooter/Core` — scene flow and framework-independent state models
-- `Assets/HeroShooter/Player` — input, movement, and shoulder camera
-- `Assets/HeroShooter/Combat` — weapon configuration, hitscan firing, and damage contract
-- `Assets/HeroShooter/Targets` — reusable target dummy
-- `Assets/HeroShooter/UI` — crosshair and HUD presentation
-- `Assets/HeroShooter/Editor` — repeatable project, prefab, and scene builder
-- `Assets/HeroShooter/Tests/EditMode` — health, magazine, and cooldown tests
+## Project information
+- [Agent guidance](AGENTS.md)
+- [Game design and balance](docs/game-design.md)
+- [Architecture and verification](docs/architecture.md)
+- [Milestone status](docs/tasks.md)
 
-## Scenes and builds
-
-- `Assets/HeroShooter/Scenes/MainMenu.unity` — build index 0
-- `Assets/HeroShooter/Scenes/HeroSandbox.unity` — build index 1
-- `Assets/Scenes/SampleScene.unity` — retained as an unused reference and excluded from builds
-
-Use **Hero Shooter → Build Windows Development** to regenerate the starter content and build `Builds/Windows/HeroShooterPrototype.exe`. The build output is ignored by Git.
-
-Run Edit Mode tests from **Window → General → Test Runner**. The gameplay tuning assets generated under `Assets/HeroShooter/Data` can be adjusted without changing code.
+The former shooter prototype is recoverable from Git history. Multiplayer, save/load, fog of war, upgrades, custom art and audio are outside this milestone.

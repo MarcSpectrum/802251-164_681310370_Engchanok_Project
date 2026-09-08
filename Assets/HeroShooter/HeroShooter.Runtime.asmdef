@@ -1,8 +1,0 @@
-{
-  "name": "HeroShooter.Runtime",
-  "rootNamespace": "Engchanok.HeroShooter",
-  "references": [
-    "Unity.InputSystem"
-  ],
-  "autoReferenced": true
-}

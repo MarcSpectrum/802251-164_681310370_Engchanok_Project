@@ -1,0 +1,1 @@
+{"name":"StrategyGame.Runtime","rootNamespace":"Engchanok.StrategyGame","references":["Unity.InputSystem","Unity.AI.Navigation","Unity.ugui"]}

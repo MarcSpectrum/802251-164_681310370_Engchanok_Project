@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 namespace Engchanok.StrategyGame
 {
     public sealed class StrategyCommander : MonoBehaviour
@@ -12,15 +13,51 @@ namespace Engchanok.StrategyGame
         public Vector2 DragStart { get; private set; }
         public bool Dragging { get; private set; }
         public Vector2 Pointer => Mouse.current == null ? Vector2.zero : Mouse.current.position.ReadValue();
-        public bool PointerOverUI => Pointer.y < 158 || Pointer.y > Screen.height - 76;
+        public bool PointerOverUI
+        {
+            get
+            {
+                if (EventSystem.current == null) return false;
+                var hits = new List<RaycastResult>();
+                EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = Pointer }, hits);
+                return hits.Count > 0;
+            }
+        }
+        public bool TargetingAttackMove { get; private set; }
+        readonly Dictionary<int, List<StrategyEntity>> groups = new();
+        public void BeginAttackMove()
+        {
+            if (!match.Running || !Selection.Exists(e => e != null && e.Alive && e.kind == EntityKind.Soldier)) return;
+            CancelPlacement(); TargetingAttackMove = true; Dragging = false;
+        }
+        public void StoreGroup(int number)
+        {
+            if (!match.Running || number < 1 || number > 9) return;
+            groups[number] = Selection.FindAll(e => e != null && e.Alive && !e.IsEnemy && e.IsUnit);
+        }
+        public void RecallGroup(int number)
+        {
+            if (!match.Running || !groups.TryGetValue(number, out var group)) return;
+            group.RemoveAll(e => e == null || !e.Alive);
+            if (group.Count == 0) return;
+            ClearSelection(); foreach (var e in group) Select(e);
+        }
+        public bool IssueAttackMove(Vector3 destination)
+        {
+            if (!match.Running) return false;
+            bool accepted = false;
+            foreach (var e in Selection) if (e != null && e.Alive) accepted |= e.AttackMove(destination);
+            if (accepted) StrategyFeedback.Marker(match, destination, Color.cyan);
+            return accepted;
+        }
         public Vector3 PlacementPoint { get; private set; }
         public bool PlacementValid { get; private set; }
         public string PlacementReason { get; private set; }
         GameObject preview;
         Material previewMaterial;
-        Vector3 focus = new(0, 0, -5);
+        Vector3 focus = new(0, 0, -12);
         float height = 37;
-        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); Placement = kind; } }
+        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); TargetingAttackMove = false; Placement = kind; } }
         public void CancelPlacement() { Placement = null; if (preview != null) Destroy(preview); if (previewMaterial != null) Destroy(previewMaterial); }
         void OnDestroy() { if (previewMaterial != null) Destroy(previewMaterial); }
         void Update()
@@ -30,11 +67,17 @@ namespace Engchanok.StrategyGame
             var mouse = Mouse.current; var keys = Keyboard.current;
             if (keys.escapeKey.wasPressedThisFrame)
             {
-                if (Placement.HasValue) CancelPlacement();
+                if (TargetingAttackMove) TargetingAttackMove = false;
+                else if (Placement.HasValue) CancelPlacement();
                 else if (match.Waves.Result == MatchResult.Playing) match.SetPaused(!match.Paused);
                 Dragging = false;
+                return;
             }
-            if (!match.Running) { if (preview != null) preview.SetActive(false); return; }
+            if (!match.Running) { Dragging = false; if (preview != null) preview.SetActive(false); return; }
+            if (keys.fKey.wasPressedThisFrame) BeginAttackMove();
+            for (int n = 1; n <= 9; n++)
+                if (keys[(Key)((int)Key.Digit1 + n - 1)].wasPressedThisFrame)
+                { if (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed) StoreGroup(n); else RecallGroup(n); }
             float x = (keys.dKey.isPressed || keys.rightArrowKey.isPressed ? 1 : 0) - (keys.aKey.isPressed || keys.leftArrowKey.isPressed ? 1 : 0);
             float z = (keys.wKey.isPressed || keys.upArrowKey.isPressed ? 1 : 0) - (keys.sKey.isPressed || keys.downArrowKey.isPressed ? 1 : 0);
             focus += new Vector3(x, 0, z) * (height * .7f * Time.unscaledDeltaTime);
@@ -42,6 +85,13 @@ namespace Engchanok.StrategyGame
             if (!PointerOverUI) height = Mathf.Clamp(height - mouse.scroll.ReadValue().y * .025f, 18, 60);
             view.transform.position = focus + new Vector3(0, height, -height * .65f);
             view.transform.rotation = Quaternion.Euler(57, 0, 0);
+            if (TargetingAttackMove)
+            {
+                if (mouse.rightButton.wasPressedThisFrame) { TargetingAttackMove = false; return; }
+                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var targetHit, 300))
+                { IssueAttackMove(targetHit.point); TargetingAttackMove = false; }
+                return;
+            }
             if (Placement.HasValue)
             {
                 Dragging = false;
@@ -75,6 +125,13 @@ namespace Engchanok.StrategyGame
             {
                 var enemy = commandHit.collider.GetComponentInParent<StrategyEntity>();
                 var deposit = commandHit.collider.GetComponentInParent<MineralDeposit>();
+                if (Selection.Count == 1 && Selection[0].kind == EntityKind.Barracks)
+                {
+                    if (Selection[0].SetRallyPoint(commandHit.point)) StrategyFeedback.Marker(match, commandHit.point, Color.cyan);
+                    else match.Notify("Choose reachable ground for the rally point.");
+                    return;
+                }
+                StrategyFeedback.Marker(match, commandHit.point, Color.cyan);
                 int index = 0;
                 foreach (var unit in Selection)
                 {
@@ -91,7 +148,7 @@ namespace Engchanok.StrategyGame
             }
         }
         public void ClearSelection() { foreach (var e in Selection) if (e != null) e.Selected = false; Selection.Clear(); }
-        void Select(StrategyEntity entity) { if (!Selection.Contains(entity)) { Selection.Add(entity); entity.Selected = true; } }
+        public void Select(StrategyEntity entity) { if (match.Running && entity != null && entity.Alive && !entity.IsEnemy && !Selection.Contains(entity)) { Selection.Add(entity); entity.Selected = true; } }
         void UpdatePreview()
         {
             if (preview == null)

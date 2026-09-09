@@ -19,7 +19,8 @@ namespace Engchanok.StrategyGame
         public static readonly Vector3[] SpawnPoints = { new(-29, 0, 31), new(0, 0, 33), new(29, 0, 31) };
         public string Notice { get; private set; } = "Select workers, then right-click a mineral deposit.";
         float noticeTime;
-        int pendingEnemies;
+        readonly Queue<EntityKind> pendingEnemies = new();
+        public int HostileCount => pendingEnemies.Count + Entities.FindAll(e => e != null && e.IsEnemy && e.Alive).Count;
         void Start()
         {
             Time.timeScale = 1; Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
@@ -33,14 +34,14 @@ namespace Engchanok.StrategyGame
         {
             if (!Running) return;
             if (noticeTime > 0) { noticeTime -= Time.deltaTime; if (noticeTime <= 0) Notice = ""; }
-            if (pendingEnemies > 0)
-                for (int i = 0; i < SpawnPoints.Length && pendingEnemies > 0; i++)
-                    if (TrySpawnUnit(EntityKind.Enemy, SpawnPoints[i], out _)) pendingEnemies--;
-            int enemies = pendingEnemies + Entities.FindAll(e => e != null && e.IsEnemy && e.Alive).Count;
+            if (pendingEnemies.Count > 0)
+                for (int i = 0; i < SpawnPoints.Length && pendingEnemies.Count > 0; i++)
+                    if (TrySpawnUnit(pendingEnemies.Peek(), SpawnPoints[i], out _)) pendingEnemies.Dequeue();
+            int enemies = HostileCount;
             if (Waves.Tick(Time.deltaTime, enemies, Headquarters != null && Headquarters.Alive))
             {
-                int count = settings.firstWaveEnemies + (Waves.Wave - 1) * settings.extraEnemiesPerWave;
-                pendingEnemies = count;
+                foreach (var kind in settings.Composition(Waves.Wave).Enemies()) pendingEnemies.Enqueue(kind);
+                StrategyFeedback.Sound(this, 220, .3f);
                 Notify("Wave " + Waves.Wave + " incoming!");
             }
             if (Waves.Result != MatchResult.Playing) Time.timeScale = 0;

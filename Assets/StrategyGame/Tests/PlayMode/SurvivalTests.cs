@@ -85,11 +85,15 @@ namespace Engchanok.StrategyGame.Tests
         }
         [UnityTest] public IEnumerator HeadquartersDeathEndsMatchAndMenuLoads()
         {
+            var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+            var deposit=Object.FindFirstObjectByType<MineralDeposit>();
             match.Headquarters.Damage(99999);
             yield return null; yield return null;
             Assert.AreEqual(MatchResult.Defeat, match.Waves.Result);
             Assert.AreEqual(0, Time.timeScale);
             Assert.IsFalse(match.Running);
+            Assert.IsFalse(worker.Move(Vector3.zero)); worker.Gather(deposit); Assert.IsNull(worker.MiningTarget);
+            Assert.IsFalse(Object.FindFirstObjectByType<StrategyCommander>().IssueAttackMove(Vector3.zero));
             match.MainMenu(); yield return null;
             Assert.AreEqual("MainMenu", SceneManager.GetActiveScene().name);
             Assert.AreEqual(1,Time.timeScale);
@@ -164,6 +168,105 @@ namespace Engchanok.StrategyGame.Tests
                 InputSystem.settings.editorInputBehaviorInPlayMode = editorBehavior;
 #endif
                 InputSystem.RemoveDevice(mouse); InputSystem.RemoveDevice(keyboard);
+            }
+        }
+        [UnityTest] public IEnumerator AttackMoveResumesAndExplicitAttackKeepsTarget()
+        {
+            match.settings.soldierDamage=1000; match.settings.soldierRange=4;
+            Assert.IsTrue(match.TrySpawnUnit(EntityKind.Soldier,new Vector3(-10,0,0),out var soldier));
+            var origin=soldier.transform.position;
+            var target=match.Spawn(EntityKind.Enemy,origin+Vector3.forward*2);
+            var closer=match.Spawn(EntityKind.Runner,origin+Vector3.right);
+            soldier.Attack(target); Assert.AreEqual(target,soldier.AttackTarget);
+            yield return null;
+            Assert.IsFalse(target.Alive,"Explicit attack must retain the requested target.");
+            closer.Damage(99999);
+            var goal=origin+Vector3.forward*10;
+            var blocker=match.Spawn(EntityKind.Brute,origin+Vector3.forward*3);
+            Assert.IsTrue(soldier.AttackMove(goal));
+            float deadline=Time.realtimeSinceStartup+8;
+            while(Vector3.Distance(soldier.transform.position,goal)>1 && Time.realtimeSinceStartup<deadline) yield return null;
+            Assert.IsFalse(blocker.Alive); Assert.Less(Vector3.Distance(soldier.transform.position,goal),1);
+        }
+        [UnityTest] public IEnumerator RallyGroupsAndPausedCommands()
+        {
+            match.Wallet.Deposit(1000); Assert.IsTrue(match.Build(EntityKind.Barracks,new Vector3(-9,0,-11)));
+            yield return new WaitForSeconds(.3f);
+            var producer=match.Entities.First(e=>e.kind==EntityKind.Barracks);
+            var goal=new Vector3(-5,0,0); Assert.IsTrue(producer.SetRallyPoint(goal));
+            Assert.IsFalse(producer.SetRallyPoint(new Vector3(200,0,200))); Assert.Less(Vector3.Distance(goal,producer.RallyPoint.Value),.1f); goal=producer.RallyPoint.Value;
+            match.settings.soldierTraining=.1f; Assert.IsTrue(match.Train(producer)); yield return new WaitForSeconds(.3f);
+            var soldier=match.Entities.First(e=>e.kind==EntityKind.Soldier);
+            Assert.AreEqual(UnitOrder.AttackMove,soldier.Order); Assert.AreEqual(goal,soldier.OrderDestination);
+            var commander=Object.FindFirstObjectByType<StrategyCommander>(); commander.Select(soldier); commander.StoreGroup(1); commander.ClearSelection(); commander.RecallGroup(1);
+            Assert.Contains(soldier,commander.Selection);
+            match.SetPaused(true); Assert.IsFalse(soldier.Move(Vector3.zero)); Assert.IsFalse(soldier.AttackMove(Vector3.zero));
+            Assert.IsFalse(producer.SetRallyPoint(Vector3.zero)); Assert.IsFalse(commander.IssueAttackMove(Vector3.zero)); Assert.AreEqual(goal,soldier.OrderDestination);
+            match.SetPaused(false); soldier.Damage(99999); commander.ClearSelection(); commander.RecallGroup(1); Assert.IsEmpty(commander.Selection);
+        }
+        [UnityTest] public IEnumerator PendingWaveRetainsVariantsWhenNavigationIsUnavailable()
+        {
+            // Temporarily remove the baked surface: every spawn must wait, then recover.
+            var surface=Object.FindFirstObjectByType<Unity.AI.Navigation.NavMeshSurface>();
+            match.settings.waveCompositions=new[]{new WaveComposition(0,2,1)};
+            match.Waves.Tick(1000,0,true); // Activate a wave, then feed its pending spawn queue.
+            var field=typeof(StrategyMatch).GetField("pendingEnemies",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+            var pending=(System.Collections.Generic.Queue<EntityKind>)field.GetValue(match);
+            foreach(var kind in match.settings.Composition(1).Enemies()) pending.Enqueue(kind);
+            surface.RemoveData();
+            try
+            {
+                yield return null; yield return null;
+                Assert.AreEqual(3,match.HostileCount); Assert.AreEqual(3,pending.Count);
+                Assert.AreEqual(MatchResult.Playing,match.Waves.Result);
+            }
+            finally { surface.AddData(); }
+            yield return null; yield return null;
+            Assert.AreEqual(0,pending.Count);
+            Assert.AreEqual(2,match.Entities.Count(e=>e.kind==EntityKind.Runner));
+            Assert.AreEqual(1,match.Entities.Count(e=>e.kind==EntityKind.Brute));
+        }
+        [UnityTest] public IEnumerator TargetingCancellationAndHudClicksPreserveOrders()
+        {
+            var mouse=InputSystem.AddDevice<Mouse>(); var keyboard=InputSystem.AddDevice<Keyboard>();
+            var background=InputSystem.settings.backgroundBehavior;
+            InputSystem.settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;
+#if UNITY_EDITOR
+            var editorBehavior=InputSystem.settings.editorInputBehaviorInPlayMode;
+            InputSystem.settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+#endif
+            InputSystem.EnableDevice(mouse); InputSystem.EnableDevice(keyboard);
+            InputSystem.QueueStateEvent(keyboard,new KeyboardState()); InputSystem.Update();
+            try
+            {
+                var commander=Object.FindFirstObjectByType<StrategyCommander>();
+                Assert.IsTrue(match.TrySpawnUnit(EntityKind.Soldier,new Vector3(-6,0,-5),out var soldier));
+                commander.ClearSelection(); commander.Select(soldier);
+                var goal=new Vector3(5,0,-5); Assert.IsTrue(soldier.Move(goal));
+                commander.BeginAttackMove(); Assert.IsTrue(commander.TargetingAttackMove);
+                var point=new Vector2(40,Screen.height-30);
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.IsTrue(commander.TargetingAttackMove); Assert.AreEqual(goal,soldier.OrderDestination);
+                yield return null;
+                point=commander.view.WorldToScreenPoint(new Vector3(0,0,-5));
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=2});
+                InputSystem.QueueStateEvent(mouse,new MouseState{position=point}); InputSystem.Update();
+                Assert.IsFalse(commander.TargetingAttackMove); Assert.AreEqual(goal,soldier.OrderDestination);
+                yield return null;
+                commander.BeginAttackMove();
+                InputSystem.QueueStateEvent(keyboard,new KeyboardState(Key.Escape)); InputSystem.Update(); commander.SendMessage("Update");
+                InputSystem.QueueStateEvent(keyboard,new KeyboardState()); InputSystem.Update();
+                Assert.IsFalse(commander.TargetingAttackMove); Assert.IsFalse(match.Paused); Assert.IsFalse(commander.Dragging);
+                Assert.Contains(soldier,commander.Selection); Assert.AreEqual(goal,soldier.OrderDestination);
+                yield return null;
+            }
+            finally
+            {
+#if UNITY_EDITOR
+                InputSystem.settings.editorInputBehaviorInPlayMode=editorBehavior;
+#endif
+                InputSystem.settings.backgroundBehavior=background; InputSystem.RemoveDevice(mouse); InputSystem.RemoveDevice(keyboard);
             }
         }
         static void SendPointer(StrategyCommander commander, Mouse mouse, MouseState state)

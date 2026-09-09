@@ -1,19 +1,17 @@
 # Architecture
 
-Project code and assets live under Assets/StrategyGame with separate runtime, editor, Edit Mode test and Play Mode test assemblies.
+Gameplay lives under Assets/StrategyGame with separate runtime, editor, Edit Mode and Play Mode assemblies.
 
-- Core: StrategySettings stores tuning. HealthModel, Wallet, MineralStock, ProductionQueue and WaveState hold testable rules. StrategyMatch owns entities, spending, spawning, placement, pause, results and scene flow.
-- Units/economy: StrategyEntity executes movement, mining, production and combat. MineralDeposit owns finite stock. NavMeshAgent handles travel; buildings carve NavMesh obstacles. Pending wave spawns retry until space is available.
-- Input: StrategyCommander polls the installed Input System, manages selection and contextual orders, camera bounds and placement preview. UI bands exclude world commands.
-- UI: StrategyHud and StrategyMenu use Unity immediate-mode GUI for a dependency-free prototype HUD. Match state gates commands; time scale pauses agents, production, combat and waves.
-- Editor: StrategyProjectBuilder generates prefabs, materials, static navigation data and two scenes. The static floor is baked; buildings carve runtime footprints. Lane reservations prevent players sealing enemy approaches.
+- StrategySettings owns economy, combat, enemy multipliers and wave composition tuning. Wallet, HealthModel, ProductionQueue, MineralStock, WaveComposition and WaveState are independent rule models.
+- StrategyMatch owns match state, spawning, placement and spending. Its pending enemy queue retains enemy kinds and participates in wave-completion checks.
+- StrategyEntity executes explicit movement, attack, attack-move and gather orders through NavMeshAgent. Barracks retain an optional rally position. Public orders are gated on a living entity and running match.
+- StrategyCommander handles selection, control groups, targeting, camera and contextual orders. EventSystem raycasts determine UI interception instead of fixed screen bands.
+- StrategyUI builds scalable uGUI canvases; StrategyHud and StrategyMenu bind runtime buttons. Generated scene canvases preview the layout in the editor and are recreated at runtime to bind listeners. Health bars are non-interactive UI. StrategyFeedback owns selection/rally rings, flashes, short effects and cached procedural sound cues.
+- StrategyProjectBuilder generates geometric prefabs, navigation and both scenes. Decorations do not contribute to the navigation bake; structures carve runtime footprints. Existing settings and materials are preserved.
 
-## Generated content
-Strategy Game > Rebuild Prototype regenerates Scenes and Prefabs, preserving existing settings and materials. Save editor changes first. Generated assets and their .meta files are tracked. Strategy Game > Build Windows Development builds existing scenes only, to ignored Builds/Windows/OutpostStrategy.exe.
+## Generation and verification
+Rebuild Prototype explicitly regenerates scenes and prefabs after offering to save editor work. Build Windows Development only builds existing scenes to Builds/Windows/OutpostStrategy.exe. Preserve all existing asset GUIDs.
 
-The old shooter is removed from the active project and recoverable through Git history. Do not restore its startup hook or build scene entries.
+Run Edit Mode and Play Mode through Unity Test Runner. CLI uses -batchmode -projectPath <project> -runTests -testPlatform EditMode -testResults <file> -logFile <file>; use PlayMode for integration tests and omit -quit for tests.
 
-## Verification
-Use Unity Test Runner for Edit Mode and Play Mode suites. CLI: Unity.exe -batchmode -projectPath <project> -runTests -testPlatform EditMode -testResults <file> -logFile <file> (replace platform with PlayMode for integration tests; omit -quit for the test runner).
-
-The development player accepts `--outpost-smoke` for an opt-in accelerated replay using default balance. It mines, builds and trains through all five waves, saves screenshots and a result under `Builds/Windows/Smoke`, then exits with code 0 on victory or 1 otherwise. This harness is excluded from non-development player builds and never runs without the flag.
+The development-only --outpost-smoke replay mines, constructs defenses, trains and rallies soldiers through five waves. It writes rendered screenshots and results to Builds/Windows/Smoke. Add --outpost-normal-speed for a real-time replay writing to SmokeNormal. Captures cover menu, pause and HUD at 1280x720, 1920x1080 and 2560x1080. It never runs without the flag and is excluded from release builds. Upgrade validation reports live under ignored Builds/UpgradeValidation.

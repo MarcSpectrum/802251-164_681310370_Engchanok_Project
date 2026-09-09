@@ -44,3 +44,25 @@ MonoBehaviour:
   workerSpeed: 5
   soldierSpeed: 5
   enemySpeed: 3.5
+  runnerHealth: 0.6
+  runnerSpeed: 1.6
+  runnerDamage: 0.7
+  bruteHealth: 2.5
+  bruteSpeed: 0.65
+  bruteDamage: 1.6
+  waveCompositions:
+  - standard: 5
+    runners: 0
+    brutes: 0
+  - standard: 6
+    runners: 3
+    brutes: 0
+  - standard: 8
+    runners: 4
+    brutes: 1
+  - standard: 9
+    runners: 6
+    brutes: 2
+  - standard: 10
+    runners: 8
+    brutes: 3

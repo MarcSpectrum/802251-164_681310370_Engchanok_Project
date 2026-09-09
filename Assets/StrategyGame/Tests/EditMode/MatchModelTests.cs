@@ -1,8 +1,24 @@
 using NUnit.Framework;
+using System.Linq;
+using UnityEngine;
 namespace Engchanok.StrategyGame.Tests
 {
     public sealed class MatchModelTests
     {
+        [Test] public void WaveCompositionPreservesTypesAndRejectsNegativeCounts()
+        {
+            var wave = new WaveComposition(2, 3, 1).Enemies().ToArray();
+            Assert.AreEqual(6, wave.Length); Assert.AreEqual(3, wave.Count(k => k == EntityKind.Runner));
+            Assert.AreEqual(EntityKind.Brute, wave.Last()); Assert.IsEmpty(new WaveComposition(-1,-2,-3).Enemies());
+        }
+        [Test] public void LegacySettingsKeepCountFormulaAndVariantsScaleFromBase()
+        {
+            var settings = ScriptableObject.CreateInstance<StrategySettings>();
+            try { Assert.AreEqual(21, settings.Composition(5).Enemies().Count());
+                Assert.AreEqual(settings.enemyHealth * 2.5f,settings.Health(EntityKind.Brute));
+                Assert.AreEqual(settings.enemySpeed * 1.6f,settings.EnemySpeed(EntityKind.Runner)); }
+            finally { Object.DestroyImmediate(settings); }
+        }
         [Test] public void SpendingIsAtomicAndRejectsNegativeAmounts()
         { var wallet = new Wallet(100); Assert.IsFalse(wallet.TrySpend(101)); Assert.IsFalse(wallet.TrySpend(-1)); Assert.AreEqual(100, wallet.Minerals); Assert.IsTrue(wallet.TrySpend(100)); Assert.AreEqual(0, wallet.Minerals); }
         [Test] public void MiningPreservesTotalAndCapsFinalLoad()

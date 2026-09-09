@@ -1,23 +1,21 @@
 # Milestone tracking
 
-## Implemented
-- RTS selection, navigation, context commands and overhead camera.
-- Mineral gathering, production queues and instant building placement.
-- Soldier/turret combat, enemy waves, victory/defeat, pause and restart.
-- Generated scenes, prefabs, navigation, tuning and Windows build command.
-- Root agent guidance, gameplay and architecture documentation.
-- Edit Mode rule tests and Play Mode integration scenarios.
+## Focused upgrade implemented
+- Scalable Canvas menu/HUD, contextual actions, controls panel, pause/results and session mute.
+- Attack-move with route resumption, explicit attack target retention, barracks rally points and unit control groups.
+- Runner and Brute variants with configurable multipliers and five mixed waves; blocked spawns retain their types.
+- Distinct geometric silhouettes, selection/rally/destination indicators, health bars, combat flashes and procedural cues.
+- Generated scenes/prefabs updated without resetting existing tuning or asset identity.
+- Starting camera frames HQ and all four mineral deposits above the command panel.
 
 ## Validation
-- Unity 6000.3.22f1 validation ran in an isolated project copy while the original editor stayed open.
-- Edit Mode: 7/7 passed.
-- Play Mode: 6/6 passed, covering mining/delivery, placement/spending, production/pause, navigation, pointer commands/UI isolation, victory/restart and defeat/menu.
-- Repeated scene/prefab/navigation generation passed; the Windows development build succeeded.
-- Two standalone replays with unchanged default balance reached victory on wave five after the replay was adjusted to place forward defenses and rally soldiers.
-- Reports are in ignored `Builds/Validation`; the playable executable is `Builds/Windows/OutpostStrategy.exe`.
-- Visual inspection remains pending: hidden-window captures failed or returned black frames. These captures are not delivered as screenshots. Human playtesting of layout and balance is still useful.
+- Edit Mode: 9/9 passed, including composition and legacy settings compatibility.
+- Play Mode: 9/9 passed after camera/text polish, plus the focused targeting-cancellation/HUD isolation test passed (10 scenarios total).
+- Repeated generation preserved the settings JSON and GUID and produced every entity prefab.
+- Windows development build succeeded. Accelerated and normal-speed standalone replays both won all five waves with default balance (45 and 75 minerals remaining respectively). The delivery build replay also reached victory; its corrected result label and teal selection ring were visually verified.
+- Rendered menu, HUD and pause captures inspected at 1280x720, 1920x1080 and 2560x1080. Fixed a controls-text encoding issue and improved starting camera framing after inspection.
+- Reports and logs: ignored Builds/UpgradeValidation. Replay captures: Builds/Windows/Smoke and SmokeNormal.
 
-## Later
-- Playtest default balance with several players.
-- Improve unit animations, selection rings, sound and HUD scaling.
-- Add new content only after the base survival loop is evaluated.
+## Remaining evaluation
+- Normal-speed validation uses an automated commander. Human playtesting with several players remains useful for difficulty and pacing feedback.
+- Research, multiplayer, save/load and additional maps remain outside this version.

@@ -4,17 +4,20 @@ namespace Engchanok.StrategyGame
 {
     public sealed class StrategyMenu : MonoBehaviour
     {
-        void Start() { Time.timeScale = 1; Cursor.visible = true; Cursor.lockState = CursorLockMode.None; }
-        void OnGUI()
+        public Canvas canvas;
+        public void BuildUI()
         {
-            float x = Screen.width * .12f, y = Screen.height * .26f;
-            var title = new GUIStyle(GUI.skin.label) { fontSize = 44, fontStyle = FontStyle.Bold };
-            var body = new GUIStyle(GUI.skin.label) { fontSize = 18, wordWrap = true };
-            GUI.Label(new Rect(x, y, 700, 70), "OUTPOST", title);
-            GUI.Label(new Rect(x + 3, y + 70, 600, 35), "A SCI-FI STRATEGY SURVIVAL PROTOTYPE", body);
-            GUI.Label(new Rect(x + 3, y + 125, 570, 105), "Mine minerals. Build barracks and turrets. Command your soldiers. Protect headquarters through five enemy waves.", body);
-            if (GUI.Button(new Rect(x, y + 245, 280, 52), "DEPLOY TO OUTPOST", new GUIStyle(GUI.skin.button) { fontSize = 20 })) SceneManager.LoadScene("Survival");
-            if (GUI.Button(new Rect(x, y + 312, 280, 38), "Quit")) Application.Quit();
+            if(canvas!=null) return;
+            canvas=StrategyUI.Canvas(transform);
+            var bg=StrategyUI.Panel(canvas.transform,"Menu",Vector2.zero,Vector2.one,StrategyUI.Ink);
+            StrategyUI.Label(bg.transform,"O U T P O S T",new Vector2(.12f,.65f),new Vector2(.85f,.83f),76,StrategyUI.Accent);
+            StrategyUI.Label(bg.transform,"STRATEGY / SURVIVAL",new Vector2(.12f,.57f),new Vector2(.8f,.65f),28);
+            StrategyUI.Label(bg.transform,"Mine minerals. Command your soldiers.\nBuild a perimeter and hold against five escalating waves.\n\nRunners close fast. Brutes hit hard. Make every order count.",new Vector2(.12f,.32f),new Vector2(.8f,.55f),28);
+            StrategyUI.Button(bg.transform,"DEPLOY TO OUTPOST",new Vector2(.12f,.2f),new Vector2(.43f,.29f),()=>SceneManager.LoadScene("Survival"));
+            StrategyUI.Button(bg.transform,"Quit",new Vector2(.12f,.1f),new Vector2(.43f,.18f),()=>Application.Quit());
+            StrategyUI.Label(bg.transform,"01  MINE     /     02  FORTIFY     /     03  SURVIVE",new Vector2(.53f,.1f),new Vector2(.95f,.2f),22,StrategyUI.Accent);
         }
+        void Awake() { if(canvas!=null) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); } canvas=null; BuildUI(); StrategyUI.EnsureEventSystem(); }
+        void Start() { Time.timeScale=1; Cursor.visible=true; Cursor.lockState=CursorLockMode.None; }
     }
 }

@@ -18,7 +18,10 @@ Destroy all five enemy waves to win. Losing headquarters ends the match.
 | Right click | Move, attack with soldiers, or gather with workers |
 | WASD / arrows | Pan camera |
 | Mouse wheel | Zoom |
-| Escape | Cancel placement, otherwise pause/resume |
+| F then click | Attack-move soldiers |
+| Barracks + right click | Set rally point |
+| Ctrl+1?9 / 1?9 | Store / recall unit group |
+| Escape | Cancel targeting/placement, otherwise pause/resume |
 | Right click during placement | Cancel placement |
 
 Build previews turn green on valid ground. Buildings must fit inside the headquarters perimeter and leave marked approach lanes clear. Production queues hold up to five units.
@@ -37,4 +40,6 @@ Build scenes: `Assets/StrategyGame/Scenes/MainMenu.unity` and `Assets/StrategyGa
 - [Architecture and verification](docs/architecture.md)
 - [Milestone status](docs/tasks.md)
 
-The former shooter prototype is recoverable from Git history. Multiplayer, save/load, fog of war, upgrades, custom art and audio are outside this milestone.
+The focused upgrade adds a scalable Canvas HUD, attack-move, rally points, control groups, Runner/Brute enemies, selection indicators and combat effects with procedural sound. Use the HUD controls panel for help.
+
+The former shooter prototype is recoverable from Git history. Multiplayer, save/load, fog of war, research and custom asset packs are outside this milestone.

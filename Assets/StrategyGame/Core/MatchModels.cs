@@ -3,7 +3,20 @@ using System.Collections.Generic;
 
 namespace Engchanok.StrategyGame
 {
-    public enum EntityKind { Headquarters, Worker, Soldier, Barracks, Turret, Enemy }
+    public enum EntityKind { Headquarters, Worker, Soldier, Barracks, Turret, Enemy, Runner, Brute }
+    public enum UnitOrder { Idle, Move, Attack, AttackMove, Gather }
+    [Serializable]
+    public sealed class WaveComposition
+    {
+        public int standard, runners, brutes;
+        public WaveComposition(int standard, int runners, int brutes) { this.standard = standard; this.runners = runners; this.brutes = brutes; }
+        public IEnumerable<EntityKind> Enemies()
+        {
+            for (int i = 0; i < Math.Max(0, standard); i++) yield return EntityKind.Enemy;
+            for (int i = 0; i < Math.Max(0, runners); i++) yield return EntityKind.Runner;
+            for (int i = 0; i < Math.Max(0, brutes); i++) yield return EntityKind.Brute;
+        }
+    }
     public enum MatchResult { Playing, Victory, Defeat }
     public sealed class HealthModel
     {

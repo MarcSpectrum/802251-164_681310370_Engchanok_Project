@@ -10,6 +10,43 @@ namespace Engchanok.StrategyGame
         public StrategyEntity[] prefabs;
         public Material beamMaterial;
         public readonly List<StrategyEntity> Entities = new();
+        public ResearchState Research { get; private set; }
+        public bool Practice { get; private set; }
+        public int TutorialStep { get; private set; }
+        public int DeliveredMinerals { get; private set; }
+        public bool TutorialAttackIssued { get; set; }
+        public int WorkerCapacity => Mathf.RoundToInt(settings.workerCapacity * (Research.Completed(UpgradeKind.Mining) ? 1 + settings.miningResearchBonus : 1));
+        public float CombatDamage(EntityKind kind) => kind == EntityKind.Soldier ? settings.soldierDamage * (Research.Completed(UpgradeKind.SoldierWeapons) ? 1 + settings.soldierResearchBonus : 1) : kind == EntityKind.Turret ? settings.turretDamage * (Research.Completed(UpgradeKind.TurretWeapons) ? 1 + settings.turretResearchBonus : 1) : settings.EnemyDamage(kind);
+        public void Deliver(int amount) { Wallet.Deposit(amount); DeliveredMinerals += amount; }
+        public bool CanResearch(UpgradeKind kind, out string reason)
+        {
+            reason = !System.Enum.IsDefined(typeof(UpgradeKind), kind) ? "Unknown research" : !Running ? "Mission is paused or finished" : Headquarters == null || !Headquarters.Alive ? "Headquarters unavailable" : Research.Completed(kind) ? "Completed" : Research.Active.HasValue ? "Research already in progress" : Wallet.Minerals < settings.ResearchCost(kind) ? "Need " + (settings.ResearchCost(kind) - Wallet.Minerals) + " more minerals" : "Ready to research";
+            return reason == "Ready to research";
+        }
+        public bool StartResearch(UpgradeKind kind)
+        {
+            if (!CanResearch(kind, out var reason)) { Notify(reason); return false; }
+            return Research.Start(kind, Wallet, settings.ResearchCost(kind), settings.ResearchSeconds(kind));
+        }
+        public void FinishPractice()
+        {
+            if (!Practice) return;
+            PlayerPrefs.SetInt(StrategySession.TutorialKey, 1); PlayerPrefs.Save();
+            StrategySession.PracticeRequested = false; Time.timeScale = 1; SceneManager.LoadScene("Survival");
+        }
+        void UpdateTutorial()
+        {
+            var commander = GetComponent<StrategyCommander>();
+            bool done = TutorialStep switch {
+                0 => commander.Selection.Exists(e => e != null && e.kind == EntityKind.Worker),
+                1 => DeliveredMinerals > 0,
+                2 => Entities.Exists(e => e != null && e.kind == EntityKind.Barracks),
+                3 => Entities.Exists(e => e != null && e.kind == EntityKind.Soldier),
+                4 => TutorialAttackIssued,
+                5 => Research.Completed(UpgradeKind.Mining) || Research.Completed(UpgradeKind.SoldierWeapons) || Research.Completed(UpgradeKind.TurretWeapons),
+                _ => false };
+            if (done) TutorialStep++;
+        }
         public Wallet Wallet { get; private set; }
         public WaveState Waves { get; private set; }
         public StrategyEntity Headquarters { get; private set; }
@@ -24,7 +61,9 @@ namespace Engchanok.StrategyGame
         void Start()
         {
             Time.timeScale = 1; Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
-            Wallet = new Wallet(settings.startingMinerals);
+            Practice = StrategySession.PracticeRequested; StrategySession.PracticeRequested = false;
+            Research = new ResearchState();
+            Wallet = new Wallet(Practice ? 1000 : settings.startingMinerals);
             Waves = new WaveState(settings.waveCount, settings.preparationSeconds, settings.betweenWaveSeconds);
             foreach (var deposit in FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None)) deposit.Initialize(settings.depositMinerals);
             Headquarters = Spawn(EntityKind.Headquarters, HomePosition);
@@ -33,7 +72,10 @@ namespace Engchanok.StrategyGame
         void Update()
         {
             if (!Running) return;
+            if (Headquarters == null || !Headquarters.Alive) { Waves.Tick(0, HostileCount, false); Time.timeScale = 0; return; }
+            if (Research.Tick(Time.deltaTime)) Notify("Research complete. Your forces are upgraded.");
             if (noticeTime > 0) { noticeTime -= Time.deltaTime; if (noticeTime <= 0) Notice = ""; }
+            if (Practice) { UpdateTutorial(); return; }
             if (pendingEnemies.Count > 0)
                 for (int i = 0; i < SpawnPoints.Length && pendingEnemies.Count > 0; i++)
                     if (TrySpawnUnit(pendingEnemies.Peek(), SpawnPoints[i], out _)) pendingEnemies.Dequeue();
@@ -48,7 +90,7 @@ namespace Engchanok.StrategyGame
         }
         public void Notify(string message) { Notice = message; noticeTime = 6; }
         public void SetPaused(bool paused) { Paused = paused; Time.timeScale = paused || Waves.Result != MatchResult.Playing ? 0 : 1; }
-        public void Restart() { Time.timeScale = 1; SceneManager.LoadScene("Survival"); }
+        public void Restart() { StrategySession.PracticeRequested = Practice; Time.timeScale = 1; SceneManager.LoadScene("Survival"); }
         public void MainMenu() { Time.timeScale = 1; SceneManager.LoadScene("MainMenu"); }
         void OnDestroy() { Time.timeScale = 1; }
         public StrategyEntity Spawn(EntityKind kind, Vector3 position)

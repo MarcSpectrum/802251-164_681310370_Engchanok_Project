@@ -3,6 +3,26 @@ using System.Collections.Generic;
 
 namespace Engchanok.StrategyGame
 {
+    public enum UpgradeKind { Mining, SoldierWeapons, TurretWeapons }
+    public sealed class ResearchState
+    {
+        readonly HashSet<UpgradeKind> completed = new();
+        public UpgradeKind? Active { get; private set; }
+        public float Remaining { get; private set; }
+        public bool Completed(UpgradeKind kind) => completed.Contains(kind);
+        public bool Start(UpgradeKind kind, Wallet wallet, int cost, float seconds)
+        {
+            if (!Enum.IsDefined(typeof(UpgradeKind), kind) || Active.HasValue || Completed(kind) || seconds <= 0 || !wallet.TrySpend(cost)) return false;
+            Active = kind; Remaining = seconds; return true;
+        }
+        public bool Tick(float delta)
+        {
+            if (!Active.HasValue) return false;
+            Remaining = Math.Max(0, Remaining - Math.Max(0, delta));
+            if (Remaining > 0) return false;
+            completed.Add(Active.Value); Active = null; return true;
+        }
+    }
     public enum EntityKind { Headquarters, Worker, Soldier, Barracks, Turret, Enemy, Runner, Brute }
     public enum UnitOrder { Idle, Move, Attack, AttackMove, Gather }
     [Serializable]

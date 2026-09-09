@@ -10,6 +10,13 @@ namespace Engchanok.StrategyGame
         public float miningSeconds = 2;
         public int workerCost = 50, soldierCost = 75, barracksCost = 150, turretCost = 100;
         public float workerTraining = 6, soldierTraining = 8;
+        [Header("Research")]
+        public int miningResearchCost = 125, soldierResearchCost = 150, turretResearchCost = 150;
+        public float miningResearchSeconds = 20, soldierResearchSeconds = 25, turretResearchSeconds = 25;
+        public float miningResearchBonus = .5f, soldierResearchBonus = .25f, turretResearchBonus = .25f;
+        public int ResearchCost(UpgradeKind kind) => kind == UpgradeKind.Mining ? miningResearchCost : kind == UpgradeKind.SoldierWeapons ? soldierResearchCost : turretResearchCost;
+        public float ResearchSeconds(UpgradeKind kind) => kind == UpgradeKind.Mining ? miningResearchSeconds : kind == UpgradeKind.SoldierWeapons ? soldierResearchSeconds : turretResearchSeconds;
+        public static string ResearchName(UpgradeKind kind) => kind == UpgradeKind.Mining ? "Improved Mining" : kind == UpgradeKind.SoldierWeapons ? "Soldier Weapons" : "Turret Weapons";
         [Header("Map and waves")]
         public float mapHalfSize = 40, buildRadius = 23;
         public int waveCount = 5, firstWaveEnemies = 5, extraEnemiesPerWave = 4;

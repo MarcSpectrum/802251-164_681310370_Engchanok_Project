@@ -124,7 +124,7 @@ namespace Engchanok.StrategyGame
                 {
                     attackTimer = match.settings.attackInterval;
                     ShowShot(AttackTarget.transform.position + Vector3.up);
-                    AttackTarget.Damage(kind == EntityKind.Turret ? match.settings.turretDamage : IsEnemy ? match.settings.EnemyDamage(kind) : match.settings.soldierDamage);
+                    AttackTarget.Damage(match.CombatDamage(kind));
                 }
             }
             else if (Agent != null && !Navigate(AttackTarget.transform.position, reach * .85f)) { AttackTarget = null; if (Order == UnitOrder.Attack) Order = UnitOrder.Idle; }
@@ -140,7 +140,7 @@ namespace Engchanok.StrategyGame
             if (Cargo > 0 && match.Headquarters != null && match.Headquarters.Alive)
             {
                 Vector3 home = match.Headquarters.transform.position;
-                if (Vector3.Distance(transform.position, home) < 4.2f) { match.Wallet.Deposit(Cargo); Cargo = 0; Stop(); }
+                if (Vector3.Distance(transform.position, home) < 4.2f) { match.Deliver(Cargo); Cargo = 0; Stop(); }
                 else if (!Navigate(home, 3.6f)) { MiningTarget = null; }
                 return;
             }
@@ -151,7 +151,7 @@ namespace Engchanok.StrategyGame
                 return;
             }
             Stop(); mineTimer += dt;
-            if (mineTimer >= match.settings.miningSeconds) { mineTimer = 0; Cargo = MiningTarget.Extract(match.settings.workerCapacity); }
+            if (mineTimer >= match.settings.miningSeconds) { mineTimer = 0; Cargo = MiningTarget.Extract(match.WorkerCapacity); }
         }
         void DetectStuck(float dt)
         {

@@ -23,12 +23,19 @@ namespace Engchanok.StrategyGame
                 return hits.Count > 0;
             }
         }
+        public UnitOrder? TargetingOrder { get; private set; }
+        public bool Targeting => TargetingAttackMove || TargetingOrder.HasValue;
+        public void BeginOrder(UnitOrder order)
+        {
+            if (!match.Running || (order != UnitOrder.Move && order != UnitOrder.Gather) || !Selection.Exists(e => e != null && e.Alive && (order == UnitOrder.Gather ? e.kind == EntityKind.Worker : e.IsUnit))) return;
+            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = order; Dragging = false;
+        }
         public bool TargetingAttackMove { get; private set; }
         readonly Dictionary<int, List<StrategyEntity>> groups = new();
         public void BeginAttackMove()
         {
             if (!match.Running || !Selection.Exists(e => e != null && e.Alive && e.kind == EntityKind.Soldier)) return;
-            CancelPlacement(); TargetingAttackMove = true; Dragging = false;
+            CancelPlacement(); TargetingOrder = null; TargetingAttackMove = true; Dragging = false;
         }
         public void StoreGroup(int number)
         {
@@ -47,7 +54,7 @@ namespace Engchanok.StrategyGame
             if (!match.Running) return false;
             bool accepted = false;
             foreach (var e in Selection) if (e != null && e.Alive) accepted |= e.AttackMove(destination);
-            if (accepted) StrategyFeedback.Marker(match, destination, Color.cyan);
+            if (accepted) { StrategyFeedback.Marker(match, destination, Color.cyan); match.TutorialAttackIssued = true; }
             return accepted;
         }
         public Vector3 PlacementPoint { get; private set; }
@@ -57,7 +64,7 @@ namespace Engchanok.StrategyGame
         Material previewMaterial;
         Vector3 focus = new(0, 0, -12);
         float height = 37;
-        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); TargetingAttackMove = false; Placement = kind; } }
+        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; Placement = kind; } }
         public void CancelPlacement() { Placement = null; if (preview != null) Destroy(preview); if (previewMaterial != null) Destroy(previewMaterial); }
         void OnDestroy() { if (previewMaterial != null) Destroy(previewMaterial); }
         void Update()
@@ -67,7 +74,7 @@ namespace Engchanok.StrategyGame
             var mouse = Mouse.current; var keys = Keyboard.current;
             if (keys.escapeKey.wasPressedThisFrame)
             {
-                if (TargetingAttackMove) TargetingAttackMove = false;
+                if (Targeting) { TargetingAttackMove = false; TargetingOrder = null; }
                 else if (Placement.HasValue) CancelPlacement();
                 else if (match.Waves.Result == MatchResult.Playing) match.SetPaused(!match.Paused);
                 Dragging = false;
@@ -85,6 +92,20 @@ namespace Engchanok.StrategyGame
             if (!PointerOverUI) height = Mathf.Clamp(height - mouse.scroll.ReadValue().y * .025f, 18, 60);
             view.transform.position = focus + new Vector3(0, height, -height * .65f);
             view.transform.rotation = Quaternion.Euler(57, 0, 0);
+            if (TargetingOrder.HasValue)
+            {
+                if (mouse.rightButton.wasPressedThisFrame) { TargetingOrder = null; return; }
+                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var orderHit, 300))
+                {
+                    var deposit = orderHit.collider.GetComponentInParent<MineralDeposit>();
+                    if (TargetingOrder == UnitOrder.Gather && deposit == null) { match.Notify("Click a teal mineral deposit."); return; }
+                    int index = 0;
+                    foreach (var unit in Selection)
+                        if (unit != null && unit.Alive && unit.IsUnit) { if (TargetingOrder == UnitOrder.Gather) unit.Gather(deposit); else { float angle = index * 2.4f, radius = Mathf.Sqrt(index++) * 1.3f; unit.Move(orderHit.point + new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius); } }
+                    StrategyFeedback.Marker(match, orderHit.point, Color.cyan); TargetingOrder = null;
+                }
+                return;
+            }
             if (TargetingAttackMove)
             {
                 if (mouse.rightButton.wasPressedThisFrame) { TargetingAttackMove = false; return; }

@@ -26,6 +26,55 @@ namespace Engchanok.StrategyGame.Tests
             if (match != null) { var copy = match.settings; match.settings = original; Object.Destroy(copy); }
             Time.timeScale = 1; SceneManager.LoadScene("MainMenu"); yield return null;
         }
+        [UnityTest] public IEnumerator ResearchAppliesToExistingAndFutureUnitsAndPauses()
+        {
+            match.Wallet.Deposit(1000); var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+            Assert.IsTrue(match.StartResearch(UpgradeKind.Mining));
+            float remaining=match.Research.Remaining; match.SetPaused(true);
+            Assert.IsFalse(match.StartResearch(UpgradeKind.SoldierWeapons));
+            yield return new WaitForSecondsRealtime(.15f); Assert.AreEqual(remaining,match.Research.Remaining);
+            match.SetPaused(false); Assert.IsTrue(match.Train(match.Headquarters));
+            match.Research.Tick(100); Assert.AreEqual(30,match.WorkerCapacity);
+            Assert.IsTrue(match.StartResearch(UpgradeKind.SoldierWeapons)); match.Research.Tick(100);
+            var soldier=match.Spawn(EntityKind.Soldier,new Vector3(-5,0,-15));
+            Assert.AreEqual(match.settings.soldierDamage*1.25f,match.CombatDamage(soldier.kind));
+            Assert.AreEqual(match.settings.turretDamage,match.CombatDamage(EntityKind.Turret));
+            match.Headquarters.Damage(100000); yield return null;
+            Assert.IsFalse(match.StartResearch(UpgradeKind.TurretWeapons));
+        }
+        [UnityTest] public IEnumerator PracticeWaitsForActionsAndNeverStartsWaves()
+        {
+            var copy=match.settings; match.settings=original; Object.Destroy(copy);
+            StrategySession.PracticeRequested=true; SceneManager.LoadScene("Survival"); yield return null; yield return null;
+            match=Object.FindFirstObjectByType<StrategyMatch>(); original=match.settings; match.settings=Object.Instantiate(original);
+            Assert.IsTrue(match.Practice); Assert.AreEqual(0,match.TutorialStep);
+            var commander=match.GetComponent<StrategyCommander>(); commander.Select(match.Entities.First(e=>e.kind==EntityKind.Worker));
+            yield return null; Assert.AreEqual(1,match.TutorialStep);
+            match.Deliver(20); yield return null; Assert.AreEqual(2,match.TutorialStep);
+            Assert.IsTrue(match.Build(EntityKind.Barracks,new Vector3(-9,0,-11))); yield return null;
+            Assert.AreEqual(3,match.TutorialStep); Assert.AreEqual(0,match.Waves.Wave);
+            commander.BeginOrder(UnitOrder.Gather); Assert.AreEqual(UnitOrder.Gather,commander.TargetingOrder);
+            commander.BeginPlacement(EntityKind.Turret); Assert.IsFalse(commander.Targeting); commander.CancelPlacement();
+            var barracks=match.Entities.First(e=>e.kind==EntityKind.Barracks); match.settings.soldierTraining=.1f;
+            Assert.IsTrue(match.Train(barracks)); yield return new WaitForSeconds(.5f);
+            Assert.AreEqual(4,match.TutorialStep);
+            commander.ClearSelection(); commander.Select(match.Entities.First(e=>e.kind==EntityKind.Soldier));
+            Assert.IsTrue(commander.IssueAttackMove(new Vector3(0,0,-2))); yield return null;
+            Assert.AreEqual(5,match.TutorialStep);
+            Assert.IsTrue(match.StartResearch(UpgradeKind.Mining)); match.Research.Tick(100); yield return null;
+            Assert.AreEqual(6,match.TutorialStep); Assert.AreEqual(0,match.Waves.Wave);
+            int previous=PlayerPrefs.GetInt(StrategySession.TutorialKey,0); bool existed=PlayerPrefs.HasKey(StrategySession.TutorialKey);
+            try
+            {
+                copy=match.settings; match.settings=original; Object.Destroy(copy);
+                match.FinishPractice(); yield return null; yield return null;
+                match=Object.FindFirstObjectByType<StrategyMatch>(); original=match.settings; match.settings=Object.Instantiate(original);
+                Assert.IsFalse(match.Practice); Assert.AreEqual(original.startingMinerals,match.Wallet.Minerals);
+                Assert.IsFalse(match.Research.Completed(UpgradeKind.Mining)); Assert.AreEqual(1,PlayerPrefs.GetInt(StrategySession.TutorialKey));
+            }
+            finally { if(existed) PlayerPrefs.SetInt(StrategySession.TutorialKey,previous); else PlayerPrefs.DeleteKey(StrategySession.TutorialKey); PlayerPrefs.Save(); }
+
+        }
         [UnityTest] public IEnumerator WorkerMinesAndDeposits()
         {
             var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
@@ -259,6 +308,26 @@ namespace Engchanok.StrategyGame.Tests
                 InputSystem.QueueStateEvent(keyboard,new KeyboardState()); InputSystem.Update();
                 Assert.IsFalse(commander.TargetingAttackMove); Assert.IsFalse(match.Paused); Assert.IsFalse(commander.Dragging);
                 Assert.Contains(soldier,commander.Selection); Assert.AreEqual(goal,soldier.OrderDestination);
+                commander.BeginOrder(UnitOrder.Move);
+                point=new Vector2(40,Screen.height-30);
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.AreEqual(UnitOrder.Move,commander.TargetingOrder); Assert.AreEqual(goal,soldier.OrderDestination);
+                point=commander.view.WorldToScreenPoint(new Vector3(0,0,-5));
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.IsFalse(commander.Targeting); Assert.Less(Vector3.Distance(new Vector3(0,0,-5),soldier.OrderDestination),.5f);
+                commander.ClearSelection(); var worker=match.Entities.First(e=>e.kind==EntityKind.Worker); commander.Select(worker);
+                commander.BeginOrder(UnitOrder.Gather);
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.AreEqual(UnitOrder.Gather,commander.TargetingOrder,"Invalid gather target must keep targeting active.");
+                var deposit=Object.FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None).OrderBy(d=>d.transform.position.x).First();
+                point=commander.view.WorldToScreenPoint(deposit.transform.position+Vector3.up);
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.IsFalse(commander.Targeting); Assert.AreSame(deposit,worker.MiningTarget);
+                match.SetPaused(true); commander.BeginOrder(UnitOrder.Move); Assert.IsFalse(commander.Targeting); match.SetPaused(false);
                 yield return null;
             }
             finally

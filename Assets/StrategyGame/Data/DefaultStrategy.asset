@@ -22,6 +22,15 @@ MonoBehaviour:
   turretCost: 100
   workerTraining: 6
   soldierTraining: 8
+  miningResearchCost: 125
+  soldierResearchCost: 150
+  turretResearchCost: 150
+  miningResearchSeconds: 20
+  soldierResearchSeconds: 25
+  turretResearchSeconds: 25
+  miningResearchBonus: 0.5
+  soldierResearchBonus: 0.25
+  turretResearchBonus: 0.25
   mapHalfSize: 40
   buildRadius: 23
   waveCount: 5

@@ -15,3 +15,10 @@ Rebuild Prototype explicitly regenerates scenes and prefabs after offering to sa
 Run Edit Mode and Play Mode through Unity Test Runner. CLI uses -batchmode -projectPath <project> -runTests -testPlatform EditMode -testResults <file> -logFile <file>; use PlayMode for integration tests and omit -quit for tests.
 
 The development-only --outpost-smoke replay mines, constructs defenses, trains and rallies soldiers through five waves. It writes rendered screenshots and results to Builds/Windows/Smoke. Add --outpost-normal-speed for a real-time replay writing to SmokeNormal. Captures cover menu, pause and HUD at 1280x720, 1920x1080 and 2560x1080. It never runs without the flag and is excluded from release builds. Upgrade validation reports live under ignored Builds/UpgradeValidation.
+
+## Research and onboarding architecture
+ResearchState is a pure C# model with atomic start/spending, progress and a completed-upgrade set. StrategyMatch validates availability and supplies effective carrying capacity and damage; base settings are never mutated by research. StrategySession carries a one-use practice request across scene loading. StrategyMatch tracks tutorial actions and isolates practice from wave ticking. The local Outpost.TutorialComplete preference controls first-time onboarding only.
+
+The HUD groups commands in three pages, shows research status, and highlights tutorial controls/targets. StrategyCommander supports Move/Gather targeting with the same UI interception and cancellation rules as attack-move.
+
+Development smoke additionally captures tutorial steps, build/placement and research pages at three resolutions and records text-overflow warnings. Add --outpost-research to exercise research purchases (SmokeResearch); combine with --outpost-normal-speed for real-time validation.

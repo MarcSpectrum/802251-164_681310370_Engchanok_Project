@@ -5,6 +5,22 @@ namespace Engchanok.StrategyGame.Tests
 {
     public sealed class MatchModelTests
     {
+        [Test] public void ResearchSpendingProgressAndCompletionAreAtomic()
+        {
+            var wallet=new Wallet(300); var research=new ResearchState();
+            Assert.IsFalse(research.Start(UpgradeKind.Mining,wallet,301,20));
+            Assert.IsFalse(research.Start((UpgradeKind)99,wallet,10,20));
+            Assert.AreEqual(300,wallet.Minerals);
+            Assert.IsTrue(research.Start(UpgradeKind.Mining,wallet,125,20));
+            Assert.IsFalse(research.Start(UpgradeKind.SoldierWeapons,wallet,150,25));
+            Assert.AreEqual(175,wallet.Minerals);
+            Assert.IsFalse(research.Tick(19)); Assert.AreEqual(1,research.Remaining);
+            research.Tick(-10); Assert.AreEqual(1,research.Remaining);
+            Assert.IsTrue(research.Tick(1)); Assert.IsTrue(research.Completed(UpgradeKind.Mining));
+            Assert.IsFalse(research.Start(UpgradeKind.Mining,wallet,125,20)); Assert.AreEqual(175,wallet.Minerals);
+            Assert.IsTrue(research.Start(UpgradeKind.TurretWeapons,wallet,150,25));
+            Assert.IsFalse(new ResearchState().Completed(UpgradeKind.Mining));
+        }
         [Test] public void WaveCompositionPreservesTypesAndRejectsNegativeCounts()
         {
             var wave = new WaveComposition(2, 3, 1).Enemies().ToArray();

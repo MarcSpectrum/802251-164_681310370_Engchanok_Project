@@ -9,7 +9,7 @@ Start with headquarters, three workers and 250 minerals. Workers gather 20 miner
 - Right-click moves units, orders soldiers to attack a specific enemy, or assigns workers to minerals.
 - F then terrain click orders selected soldiers to attack-move: engage nearby enemies and resume the route after combat.
 - Select one barracks and right-click reachable ground to set its rally point. Newly produced soldiers attack-move there.
-- Ctrl+1–9 stores friendly units; 1–9 recalls surviving members. Empty groups do nothing. Groups reset on restart.
+- Ctrl+1ï¿½9 stores friendly units; 1ï¿½9 recalls surviving members. Empty groups do nothing. Groups reset on restart.
 - WASD / arrows pan; wheel zooms. Escape / right-click cancels targeting or placement. Escape otherwise pauses.
 - HUD includes contextual training, construction, attack-move, controls, pause and a session sound toggle.
 - Paused and finished matches reject world orders.
@@ -19,4 +19,19 @@ Preparation is 65 seconds; cleared-wave breaks are 40 seconds. Default standard 
 
 Runners have 60% standard health, 160% speed and 70% damage. Brutes have 250% health, 65% speed and 160% damage. All enemies use melee attacks and advance toward HQ, engaging nearby defenders. Destroy all five waves to win; losing HQ immediately ends the mission.
 
-Tune values and compositions in DefaultStrategy. Settings without compositions retain their original count formula. No research, multiplayer, additional maps or save/load in this version.
+Tune values and compositions in DefaultStrategy. Settings without compositions retain their original count formula. No multiplayer, additional maps or save/load in this version.
+
+## Research and learning
+Play offers guided practice the first time; Learn to Play always replays it. Practice has 1000 minerals, no enemy waves, and six action-based steps. Skip or finish starts a fresh normal mission. Tutorial completion/skipping is remembered locally; no match progress is saved.
+
+Orders, Build and Research tabs group commands. Move and Gather buttons enter click targeting; Escape/right-click cancels. Existing shortcuts remain supported. Contextual labels explain costs, requirements and queue limits; preparation shows the upcoming enemy composition.
+
+Research starts at headquarters through the Research tab without requiring selection. Only one project runs at a time, independently of unit training; minerals are spent immediately, with no cancellation or queue. Each upgrade can be completed once per mission and benefits existing and future entities.
+
+| Research | Minerals | Seconds | Benefit |
+| --- | ---: | ---: | --- |
+| Improved Mining | 125 | 20 | +50% worker carrying capacity on the next extraction |
+| Soldier Weapons | 150 | 25 | +25% soldier damage |
+| Turret Weapons | 150 | 25 | +25% turret damage |
+
+Pause freezes research; ending or restarting a mission stops or resets it. Values live in DefaultStrategy; existing economy and enemy tuning is preserved.

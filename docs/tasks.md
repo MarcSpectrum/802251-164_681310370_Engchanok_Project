@@ -18,4 +18,15 @@
 
 ## Remaining evaluation
 - Normal-speed validation uses an automated commander. Human playtesting with several players remains useful for difficulty and pacing feedback.
-- Research, multiplayer, save/load and additional maps remain outside this version.
+- Multiplayer, save/load and additional maps remain outside this version.
+
+## Research and onboarding milestone
+- Three configurable, timed, per-match research investments: carrying capacity, soldier damage, turret damage. Existing and future entities use effective stats; base settings are preserved.
+- Orders / Build / Research tabs with visible Move/Gather targeting, cost and availability labels, research countdowns, upcoming wave composition and contextual guidance.
+- First-time guided practice, replay via Learn to Play, six action-based steps, control/target highlights and a fresh mission on completion or skip.
+- Generated menu and HUD previews updated; existing scenes, settings identity and tuning survived repeated generation.
+- Edit Mode: 10/10 passed. Final Play Mode: 12/12 passed, including tutorial progression/reset, research pause/benefits and synthetic Move/Gather targeting/UI isolation.
+- Windows development build succeeded; final visual review found no text overflow at 1280x720, 1920x1080 and 2560x1080.
+- Both normal-speed standalone replays won all five waves with 1600/1600 HQ health. Baseline: 60 minerals and 31 entities. Research: all three upgrades completed, 35 minerals and 35 entities.
+- Reports, logs and captures: Builds/ResearchValidation. Human first-time-player feedback remains a separate, unperformed evaluation.
+- Final delivery executable replay also won all five waves with full HQ health; the corrected victory screen was visually verified.

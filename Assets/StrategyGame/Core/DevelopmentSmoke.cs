@@ -24,11 +24,33 @@ namespace Engchanok.StrategyGame
         IEnumerator Start()
         {
             bool normal = Environment.GetCommandLineArgs().Contains("--outpost-normal-speed");
-            string directory = Path.Combine(Application.dataPath, "..", normal ? "SmokeNormal" : "Smoke");
+            bool research = Environment.GetCommandLineArgs().Contains("--outpost-research");
+            string directory = Path.Combine(Application.dataPath, "..", research ? "SmokeResearch" : normal ? "SmokeNormal" : "Smoke");
             Directory.CreateDirectory(directory);
             yield return new WaitForSecondsRealtime(1);
             yield return CaptureLayouts(directory, "menu");
             yield return new WaitForSecondsRealtime(.5f);
+            StrategySession.PracticeRequested = true;
+            SceneManager.LoadScene("Survival");
+            yield return null; yield return null;
+            var practice = FindFirstObjectByType<StrategyMatch>();
+            var practiceCommander = FindFirstObjectByType<StrategyCommander>();
+            yield return CaptureLayouts(directory, "tutorial-select");
+            practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Worker));
+            yield return null; yield return CaptureLayouts(directory,"tutorial-gather");
+            practice.Deliver(20); yield return null; yield return CaptureLayouts(directory,"tutorial-build");
+            practice.Build(EntityKind.Barracks,new Vector3(-9,0,-11)); yield return null;
+            practiceCommander.ClearSelection(); practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Barracks));
+            yield return CaptureLayouts(directory,"tutorial-train");
+            practice.Spawn(EntityKind.Soldier,new Vector3(-5,0,-12)); yield return null;
+            practiceCommander.ClearSelection(); practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Soldier));
+            yield return CaptureLayouts(directory,"tutorial-order");
+            practiceCommander.IssueAttackMove(new Vector3(0,0,-2)); yield return null;
+            yield return CaptureLayouts(directory,"tutorial-research");
+            practice.StartResearch(UpgradeKind.Mining); yield return null;
+            yield return CaptureLayouts(directory,"research-progress");
+            practice.Research.Tick(100); yield return null; yield return CaptureLayouts(directory,"tutorial-complete");
+            StrategySession.PracticeRequested = false;
             SceneManager.LoadScene("Survival");
             yield return null; yield return null;
             var match = FindFirstObjectByType<StrategyMatch>();
@@ -41,6 +63,9 @@ namespace Engchanok.StrategyGame
             var commander = FindFirstObjectByType<StrategyCommander>(); commander.Select(match.Headquarters);
             match.SetPaused(true); yield return CaptureLayouts(directory, "pause"); match.SetPaused(false);
             yield return CaptureLayouts(directory, "hud");
+            var hud=FindFirstObjectByType<StrategyHud>(); hud.ShowPage(1); yield return CaptureLayouts(directory,"build");
+            commander.BeginPlacement(EntityKind.Turret); yield return CaptureLayouts(directory,"placement"); commander.CancelPlacement();
+            hud.ShowPage(2); yield return CaptureLayouts(directory,"research"); hud.ShowPage(0);
             Time.timeScale = normal ? 1 : 10;
             float start = Time.realtimeSinceStartup;
             bool captured = false;
@@ -51,14 +76,18 @@ namespace Engchanok.StrategyGame
                 if (barracks != null && !barracks.RallyPoint.HasValue) barracks.SetRallyPoint(new Vector3(0,0,-2));
                 foreach (var soldier in match.Entities.Where(e => e.kind == EntityKind.Soldier))
                     if (rallied.Add(soldier)) soldier.AttackMove(new Vector3(-3 + rallied.Count % 3 * 3,0,-2));
-                if (match.Wallet.Minerals >= match.settings.turretCost)
+                if (research && match.Waves.Wave >= 1 && !match.Research.Active.HasValue)
+                    foreach(UpgradeKind upgrade in Enum.GetValues(typeof(UpgradeKind)))
+                        if(match.CanResearch(upgrade,out _)) { match.StartResearch(upgrade); break; }
+                bool savingForResearch=research && match.Waves.Wave>=1 && !match.Research.Active.HasValue && Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Any(u=>!match.Research.Completed(u));
+                if (!savingForResearch && match.Wallet.Minerals >= match.settings.turretCost)
                 {
                     bool built = false;
                     for (int z = 5; z >= -24 && !built; z -= 4)
                         for (int x = -18; x <= 18 && !built; x += 4)
                             if (match.CanPlace(EntityKind.Turret, new Vector3(x,0,z), out _)) built = match.Build(EntityKind.Turret,new Vector3(x,0,z));
                 }
-                if (barracks != null && barracks.Production.Count < 2 && match.Wallet.Minerals >= match.settings.soldierCost && match.Entities.Count(e => e.kind == EntityKind.Soldier) < 8) match.Train(barracks);
+                if (!savingForResearch && barracks != null && barracks.Production.Count < 2 && match.Wallet.Minerals >= match.settings.soldierCost && match.Entities.Count(e => e.kind == EntityKind.Soldier) < 8) match.Train(barracks);
                 if (!captured && match.Waves.Wave >= 2)
                 {
                     captured = true;
@@ -69,9 +98,10 @@ namespace Engchanok.StrategyGame
             yield return null;
             Capture(Path.Combine(directory, "result.png"));
             string result = match.Waves.Result.ToString();
-            File.WriteAllText(Path.Combine(directory, "result.txt"), "Result: " + result + "\nWave: " + match.Waves.Wave + "\nMinerals: " + match.Wallet.Minerals + "\nEntities: " + match.Entities.Count);
+            File.WriteAllText(Path.Combine(directory, "result.txt"), "Result: " + result + "\nWave: " + match.Waves.Wave + "\nMinerals: " + match.Wallet.Minerals + "\nEntities: " + match.Entities.Count + "\nHQ health: " + (match.Headquarters!=null?match.Headquarters.Health.Current:0) + "\nResearch completed: " + string.Join(", ",Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Where(u=>match.Research.Completed(u))));
             yield return new WaitForSecondsRealtime(.5f);
-            Application.Quit(result == "Victory" ? 0 : 1);
+            bool allResearch=Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().All(u=>match.Research.Completed(u));
+            Application.Quit(result == "Victory" && (!research || allResearch) ? 0 : 1);
         }
         static IEnumerator CaptureLayouts(string directory, string stage)
         {
@@ -94,6 +124,9 @@ namespace Engchanok.StrategyGame
             {
                 canvas.renderMode=RenderMode.ScreenSpaceCamera; canvas.worldCamera=camera; canvas.planeDistance=1;
                 camera.targetTexture=target; Canvas.ForceUpdateCanvases(); camera.Render(); RenderTexture.active=target;
+                foreach(var text in canvas.GetComponentsInChildren<UnityEngine.UI.Text>())
+                    if(text.isActiveAndEnabled && text.preferredHeight > text.rectTransform.rect.height + 2)
+                        File.AppendAllText(Path.Combine(Path.GetDirectoryName(path),"layout-warnings.txt"),Path.GetFileName(path)+": "+text.text.Replace("\n"," / ")+"\n");
                 var pixels=new Texture2D(target.width,target.height,TextureFormat.RGB24,false);
                 pixels.ReadPixels(new Rect(0,0,target.width,target.height),0,0); pixels.Apply();
                 File.WriteAllBytes(path,pixels.EncodeToPNG()); Destroy(pixels);

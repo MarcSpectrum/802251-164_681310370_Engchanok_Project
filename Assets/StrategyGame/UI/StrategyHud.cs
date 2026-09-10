@@ -8,6 +8,9 @@ namespace Engchanok.StrategyGame
         public StrategyMatch match;
         public StrategyCommander commander;
         public Canvas canvas;
+        Text headquartersStatus;
+        Image headquartersProgress, trainingProgress;
+        readonly Image[] researchProgress = new Image[3];
         Text resources, wave, notice, selection, queue, resultTitle, resultBody, muteLabel;
         Button train, attack, barracks, turret, resume, move, gather, tutorialNext;
         Text objective, tutorialText;
@@ -26,9 +29,12 @@ namespace Engchanok.StrategyGame
             if (canvas != null) return;
             canvas=StrategyUI.Canvas(transform);
             var top=StrategyUI.Panel(canvas.transform,"Status",new Vector2(0,.895f),Vector2.one,StrategyUI.Ink);
-            StrategyUI.Label(top.transform,"OUTPOST  /  SURVIVAL",new Vector2(0,0),new Vector2(.3f,1),30,StrategyUI.Accent);
-            resources=StrategyUI.Label(top.transform,"",new Vector2(.3f,0),new Vector2(.54f,1));
-            wave=StrategyUI.Label(top.transform,"",new Vector2(.54f,0),new Vector2(.81f,1));
+            StrategyUI.Label(top.transform,"OUTPOST  /  SURVIVAL",new Vector2(0,0),new Vector2(.2f,1),26,StrategyUI.Accent);
+            resources=StrategyUI.Label(top.transform,"",new Vector2(.2f,0),new Vector2(.35f,1),24,new Color(1,.75f,.35f));
+            headquartersStatus=StrategyUI.Label(top.transform,"",new Vector2(.35f,.15f),new Vector2(.55f,1),22);
+            headquartersProgress=StrategyUI.Progress(top.transform,"HQ integrity",new Vector2(.36f,.12f),new Vector2(.54f,.19f),StrategyUI.Accent);
+            StrategyUI.Rule(top.transform,Vector2.zero,new Vector2(1,.018f));
+            wave=StrategyUI.Label(top.transform,"",new Vector2(.55f,0),new Vector2(.81f,1));
             StrategyUI.Button(top.transform,"?",new Vector2(.81f,.15f),new Vector2(.86f,.85f),()=>help.gameObject.SetActive(!help.gameObject.activeSelf));
             var mute=StrategyUI.Button(top.transform,"Sound",new Vector2(.86f,.15f),new Vector2(.93f,.85f),()=> { StrategyFeedback.Muted=!StrategyFeedback.Muted; AudioListener.volume=StrategyFeedback.Muted?0:1; });
             muteLabel=mute.GetComponentInChildren<Text>();
@@ -36,7 +42,9 @@ namespace Engchanok.StrategyGame
             var bottom=StrategyUI.Panel(canvas.transform,"Commands",Vector2.zero,new Vector2(1,.25f),StrategyUI.Ink);
             notice=StrategyUI.Label(bottom.transform,"",new Vector2(.27f,.75f),Vector2.one,22,StrategyUI.Accent);
             selection=StrategyUI.Label(bottom.transform,"",new Vector2(0,.42f),new Vector2(.27f,1),26);
-            queue=StrategyUI.Label(bottom.transform,"",Vector2.zero,new Vector2(.27f,.44f),20);
+            queue=StrategyUI.Label(bottom.transform,"",new Vector2(0,.08f),new Vector2(.27f,.44f),20);
+            trainingProgress=StrategyUI.Progress(bottom.transform,"Training progress",new Vector2(.012f,.035f),new Vector2(.255f,.06f),StrategyUI.Accent);
+            StrategyUI.Rule(bottom.transform,new Vector2(0,.99f),Vector2.one);
             for (int i=0;i<3;i++)
             {
                 int page=i;
@@ -54,6 +62,7 @@ namespace Engchanok.StrategyGame
                 var upgrade=(UpgradeKind)i;
                 researchButtons[i]=StrategyUI.Button(pages[2].transform,StrategySettings.ResearchName(upgrade),new Vector2(i/3f,0),new Vector2((i+1)/3f,1),()=>match.StartResearch(upgrade));
                 researchButtons[i].GetComponentInChildren<Text>().fontSize=20;
+                researchProgress[i]=StrategyUI.Progress(researchButtons[i].transform,"Research progress",new Vector2(.04f,.025f),new Vector2(.96f,.06f),StrategyUI.Accent);
             }
             objective=StrategyUI.Label(canvas.transform,"Protect headquarters. Defeat five waves.",new Vector2(.01f,.83f),new Vector2(.65f,.895f),23,StrategyUI.Accent);
             tutorialPanel=StrategyUI.Panel(canvas.transform,"Guided practice",new Vector2(.65f,.51f),new Vector2(.99f,.83f),StrategyUI.Ink);
@@ -81,7 +90,9 @@ namespace Engchanok.StrategyGame
         {
             if(match.Waves==null) return;
             var hq=match.Headquarters;
-            resources.text=$"MINERALS  {match.Wallet.Minerals}\nHQ  {(hq!=null?Mathf.CeilToInt(hq.Health.Current):0)} / {match.settings.headquartersHealth}";
+            resources.text=$"MINERALS\n<b>{match.Wallet.Minerals}</b>";
+            headquartersStatus.text=$"HQ INTEGRITY\n{(hq!=null?Mathf.CeilToInt(hq.Health.Current):0)} / {match.settings.headquartersHealth}";
+            StrategyUI.SetProgress(headquartersProgress,hq!=null?hq.Health.Current/hq.Health.Maximum:0);
             wave.text=match.Practice?"PRACTICE / NO ENEMIES\nLearn at your own pace":match.Waves.Result!=MatchResult.Playing?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nMISSION COMPLETE":match.Waves.Active?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nHOSTILES  {match.HostileCount}":$"PREPARE / WAVE {match.Waves.Wave+1}\nINCOMING IN {Mathf.CeilToInt(match.Waves.Countdown)}s";
             var selected=commander.Selection.Count==1?commander.Selection[0]:null;
             if(selected!=null && !selected.Alive) selected=null;
@@ -90,6 +101,8 @@ namespace Engchanok.StrategyGame
             bool producer=selected!=null && (selected.kind==EntityKind.Headquarters || selected.kind==EntityKind.Barracks);
             var kind=selected!=null && selected.kind==EntityKind.Barracks?EntityKind.Soldier:EntityKind.Worker;
             train.GetComponentInChildren<Text>().text=producer?$"Train {kind}\n{match.settings.Cost(kind)} minerals":"Select HQ / barracks\nto train units";
+            trainingProgress.transform.parent.gameObject.SetActive(producer && selected.Production.Count>0);
+            if(producer) StrategyUI.SetProgress(trainingProgress,1-selected.Production.Remaining/Mathf.Max(.1f,kind==EntityKind.Worker?match.settings.workerTraining:match.settings.soldierTraining));
             bool ready=match.Running && !commander.Placement.HasValue && !commander.Targeting;
             train.interactable=ready && producer && selected.Production.Count<5 && match.Wallet.Minerals>=match.settings.Cost(kind);
             attack.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Soldier);
@@ -111,6 +124,8 @@ namespace Engchanok.StrategyGame
                 bool eligible=match.CanResearch(upgrade,out var reason);
                 researchButtons[i].interactable=ready && eligible;
                 float bonus=i==0?match.settings.miningResearchBonus:i==1?match.settings.soldierResearchBonus:match.settings.turretResearchBonus;
+                StrategyUI.SetProgress(researchProgress[i],match.Research.Completed(upgrade)?1:match.Research.Active==upgrade?1-match.Research.Remaining/Mathf.Max(.1f,match.settings.ResearchSeconds(upgrade)):0);
+                researchButtons[i].image.color=match.Research.Completed(upgrade)?new Color(.12f,.35f,.3f):match.Research.Active==upgrade?new Color(.14f,.32f,.4f):new Color(.09f,.22f,.29f);
                 string benefit="+"+Mathf.RoundToInt(bonus*100)+"% "+(i==0?"carrying capacity":"damage");
                 string status=match.Research.Active==upgrade?"Researching / "+Mathf.CeilToInt(match.Research.Remaining)+"s left":match.Research.Completed(upgrade)?"Completed":eligible?"Ready to research":reason.Replace("Research already in progress","Another project active");
                 ActionLabel(researchButtons[i],StrategySettings.ResearchName(upgrade),benefit+"\n"+match.settings.ResearchCost(upgrade)+" minerals / "+match.settings.ResearchSeconds(upgrade)+"s\n"+status);

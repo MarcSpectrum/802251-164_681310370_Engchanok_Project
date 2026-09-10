@@ -92,6 +92,7 @@ namespace Engchanok.StrategyGame
                 {
                     captured = true;
                     Capture(Path.Combine(directory, "survival.png"));
+                    yield return CaptureLayouts(directory,"combat");
                 }
                 yield return new WaitForSecondsRealtime(.3f);
             }
@@ -100,7 +101,13 @@ namespace Engchanok.StrategyGame
             string result = match.Waves.Result.ToString();
             File.WriteAllText(Path.Combine(directory, "result.txt"), "Result: " + result + "\nWave: " + match.Waves.Wave + "\nMinerals: " + match.Wallet.Minerals + "\nEntities: " + match.Entities.Count + "\nHQ health: " + (match.Headquarters!=null?match.Headquarters.Health.Current:0) + "\nResearch completed: " + string.Join(", ",Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Where(u=>match.Research.Completed(u))));
             yield return new WaitForSecondsRealtime(.5f);
+            yield return CaptureLayouts(directory,"victory");
             bool allResearch=Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().All(u=>match.Research.Completed(u));
+            // Exercise the losing overlay independently after recording the real replay result.
+            SceneManager.LoadScene("Survival"); yield return null; yield return null;
+            var losingMatch=FindFirstObjectByType<StrategyMatch>(); losingMatch.Headquarters.Damage(100000);
+            yield return null; yield return null;
+            yield return CaptureLayouts(directory,"defeat");
             Application.Quit(result == "Victory" && (!research || allResearch) ? 0 : 1);
         }
         static IEnumerator CaptureLayouts(string directory, string stage)

@@ -22,3 +22,9 @@ ResearchState is a pure C# model with atomic start/spending, progress and a comp
 The HUD groups commands in three pages, shows research status, and highlights tutorial controls/targets. StrategyCommander supports Move/Gather targeting with the same UI interception and cancellation rules as attack-move.
 
 Development smoke additionally captures tutorial steps, build/placement and research pages at three resolutions and records text-overflow warnings. Add --outpost-research to exercise research purchases (SmokeResearch); combine with --outpost-normal-speed for real-time validation.
+
+## Presentation architecture
+
+StrategyEffects is a scene-owned pool on StrategyMatch, limited to 128 reusable line effects. It renders tracers, impacts, expanding ground markers, construction pulses, and destruction bursts without transient collider creation. Effects reject requests while the match is paused/finished, advance on scaled time only while running, clear on match end, and unload with the scene. StrategyFeedback binds hit flashes and procedural audio cues to existing gameplay events; clip caching includes frequency and duration.
+
+The generator adds only cosmetic child meshes to entity prefabs and collider-free ground/perimeter decorations outside the navigation hierarchy. The menu diorama copies render children only, with no entities or navigation agents. Shared uGUI helpers provide decorative rules and non-interactive progress bars; editor previews and runtime HUD use the same construction code. Existing material assets and gameplay tuning remain preserved on regeneration.

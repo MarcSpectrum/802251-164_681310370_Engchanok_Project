@@ -30,3 +30,15 @@
 - Both normal-speed standalone replays won all five waves with 1600/1600 HQ health. Baseline: 60 minerals and 31 entities. Research: all three upgrades completed, 35 minerals and 35 entities.
 - Reports, logs and captures: Builds/ResearchValidation. Human first-time-player feedback remains a separate, unperformed evaluation.
 - Final delivery executable replay also won all five waves with full HQ health; the corrected victory screen was visually verified.
+
+## Stylized sci-fi polish milestone
+- Recorded the stylized sci-fi art direction in game design: navy industrial surfaces, cyan allies, amber workers, teal resources, and coral enemies, with shape-based recognition and restrained lighting.
+- Added armor, cargo cells, mining tools, hangar details, command-core details, and an exposed turret barrel. Added collider-free deck plates, approach edge markers, perimeter scenery, and a render-only menu diorama.
+- Separated minerals, HQ integrity, and wave status. Added HQ, training, and research progress bars plus consistent action edges and button states across menu, tutorial, HUD, pause, and results.
+- Added a bounded, scene-owned pool for tracers, impacts, expanding command markers, construction pulses, and destruction effects. Added construction/research cues and corrected audio clip cache keys to include duration.
+- Edit Mode: 10/10 passed. Play Mode: 13/13 passed, including pooling, pause, restart cleanup, and existing HUD input isolation. The Windows development build succeeded after correcting the turret silhouette.
+- Repeated generation preserved settings content and all pre-existing StrategyGame .meta files. The accelerated standalone replay won all five waves with 1600/1600 HQ health.
+- Final Play Mode rerun: 13/13 passed against the regenerated scenes. Both normal-speed delivery replays exited successfully with victory and 1600/1600 HQ health. Baseline finished with 25 minerals and 34 entities; research finished with all three upgrades, 40 minerals, and 40 entities.
+- Reviewed menu, HUD, tutorial, research, placement, combat, pause, victory, and defeat captures across 1280x720, 1920x1080, and 2560x1080. No layout-overflow warnings were produced; all capture dimensions matched their targets.
+- Diagnostic process samples: before polish, 3.59 CPU-seconds per wall second and 648 MB working set; final concurrent replays, 4.70-4.74 CPU-seconds per wall second and 718-723 MB peak sampled working set. These indicate additional presentation cost, but differing concurrent workloads prevent a controlled FPS/regression conclusion. Human playtesting and a controlled frame-time benchmark remain useful follow-up evaluations.
+- Reports, logs, before/after captures, identity checks, and performance samples are under ignored Builds/PolishValidation. Delivery executable: Builds/Windows/OutpostStrategy.exe.

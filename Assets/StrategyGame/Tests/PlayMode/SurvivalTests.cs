@@ -26,6 +26,27 @@ namespace Engchanok.StrategyGame.Tests
             if (match != null) { var copy = match.settings; match.settings = original; Object.Destroy(copy); }
             Time.timeScale = 1; SceneManager.LoadScene("MainMenu"); yield return null;
         }
+        [UnityTest] public IEnumerator PresentationEffectsPauseExpireAndUnloadWithScene()
+        {
+            var pool=StrategyEffects.For(match);
+            pool.Emit(Vector3.up,Vector3.one,Color.cyan,.3f,.1f);
+            Assert.AreEqual(1,pool.ActiveCount);
+            match.SetPaused(true);
+            yield return new WaitForSecondsRealtime(.4f);
+            Assert.AreEqual(1,pool.ActiveCount,"Pause must freeze cosmetic lifetimes.");
+            pool.Emit(Vector3.zero,Vector3.one,Color.white,1,.1f);
+            Assert.AreEqual(1,pool.ActiveCount,"Paused matches reject feedback requests.");
+            match.SetPaused(false);
+            yield return new WaitForSeconds(.4f);
+            Assert.AreEqual(0,pool.ActiveCount);
+            for(int i=0;i<200;i++) pool.Emit(Vector3.zero,Vector3.one,Color.white,1,.1f);
+            Assert.AreEqual(128,pool.ActiveCount,"Feedback allocation must be bounded.");
+            var copy=match.settings; match.settings=original; Object.Destroy(copy);
+            match.Restart(); yield return null; yield return null;
+            Assert.IsTrue(pool==null,"Scene restart must destroy the pool.");
+            match=Object.FindFirstObjectByType<StrategyMatch>(); original=match.settings; match.settings=Object.Instantiate(original);
+            Assert.AreEqual(0,StrategyEffects.For(match).ActiveCount);
+        }
         [UnityTest] public IEnumerator ResearchAppliesToExistingAndFutureUnitsAndPauses()
         {
             match.Wallet.Deposit(1000); var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);

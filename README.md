@@ -50,3 +50,7 @@ Build scenes: MainMenu and Survival under `Assets/StrategyGame/Scenes`. SampleSc
 See [game design](docs/game-design.md), [architecture and verification](docs/architecture.md), [milestone status](docs/tasks.md), and [project guidance](AGENTS.md).
 
 The former shooter prototype remains in Git history. Multiplayer, additional maps, match save/load, fog of war, and custom asset packs are outside this milestone.
+
+## Stylized sci-fi presentation
+
+The outpost now has detailed geometric unit silhouettes, industrial structures, deck plates, perimeter lighting, and a menu diorama. The HUD separates minerals, headquarters integrity, and wave status, with training and research progress bars. Pooled tracers, impacts, construction pulses, expanding order markers, and distinct procedural cues provide action feedback. Gameplay and controls remain unchanged. See the art-direction section in the game design for the visual guidelines.

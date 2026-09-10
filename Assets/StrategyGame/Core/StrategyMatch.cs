@@ -73,7 +73,7 @@ namespace Engchanok.StrategyGame
         {
             if (!Running) return;
             if (Headquarters == null || !Headquarters.Alive) { Waves.Tick(0, HostileCount, false); Time.timeScale = 0; return; }
-            if (Research.Tick(Time.deltaTime)) Notify("Research complete. Your forces are upgraded.");
+            if (Research.Tick(Time.deltaTime)) { Notify("Research complete. Your forces are upgraded."); StrategyFeedback.Sound(this, 1050, .28f); }
             if (noticeTime > 0) { noticeTime -= Time.deltaTime; if (noticeTime <= 0) Notice = ""; }
             if (Practice) { UpdateTutorial(); return; }
             if (pendingEnemies.Count > 0)
@@ -146,7 +146,7 @@ namespace Engchanok.StrategyGame
             if (!Running) return false;
             if (!CanPlace(kind, point, out var reason)) { Notify(reason); return false; }
             if (!Wallet.TrySpend(settings.Cost(kind))) return false;
-            Spawn(kind, point); Notify(kind + " ready."); return true;
+            Spawn(kind, point); StrategyFeedback.Construct(this, point); Notify(kind + " ready."); return true;
         }
         public StrategyEntity NearestOpponent(StrategyEntity source, float range)
         {

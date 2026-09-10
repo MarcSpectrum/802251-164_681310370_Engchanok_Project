@@ -24,8 +24,6 @@ namespace Engchanok.StrategyGame
         bool commandedMove;
         Vector3 navigationGoal;
         float navigationStop = -1;
-        LineRenderer shot;
-        float shotTimer;
         public void Initialize(StrategyMatch owner)
         {
             match = owner; Health = new HealthModel(match.settings.Health(kind));
@@ -90,7 +88,7 @@ namespace Engchanok.StrategyGame
         {
             if (match == null || !match.Running || !Alive) return;
             float dt = Time.deltaTime;
-            shotTimer -= dt; if (shot != null && shotTimer <= 0) shot.enabled = false;
+
             attackTimer = Mathf.Max(0, attackTimer - dt);
             if (kind == EntityKind.Headquarters || kind == EntityKind.Barracks)
             {
@@ -162,14 +160,8 @@ namespace Engchanok.StrategyGame
         }
         void ShowShot(Vector3 end)
         {
-            if (shot == null)
-            {
-                shot = gameObject.AddComponent<LineRenderer>(); shot.positionCount = 2;
-                shot.startWidth = .09f; shot.endWidth = .035f;
-                shot.material = match.beamMaterial; shot.useWorldSpace = true;
-            }
             GetComponent<StrategyFeedback>().Fire();
-            shot.enabled = true; shot.SetPosition(0, transform.position + Vector3.up * 1.5f); shot.SetPosition(1, end); shotTimer = .12f;
+            if(!IsEnemy) StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f,end,new Color(.65f,1,1),.12f,.07f);
         }
     }
 }

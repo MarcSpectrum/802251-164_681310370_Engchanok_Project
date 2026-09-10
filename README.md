@@ -23,6 +23,10 @@ The Windows development build is `Builds/Windows/OutpostStrategy.exe`.
 | Ctrl+1-9 / 1-9 | Store / recall a unit group |
 | WASD / arrows | Pan camera |
 | Mouse wheel | Zoom |
+| I then click / Inspect button | Inspect an object; pauses the battle |
+| Left-drag / wheel during inspection | Orbit / zoom |
+| Escape / I during inspection | Return to tactical view and resume |
+| C / Home | Focus selected / return to HQ overview |
 | Escape / right click while targeting | Cancel command targeting or construction |
 | Escape otherwise | Pause / resume |
 
@@ -54,3 +58,9 @@ The former shooter prototype remains in Git history. Multiplayer, additional map
 ## Stylized sci-fi presentation
 
 The outpost now has detailed geometric unit silhouettes, industrial structures, deck plates, perimeter lighting, and a menu diorama. The HUD separates minerals, headquarters integrity, and wave status, with training and research progress bars. Pooled tracers, impacts, construction pulses, expanding order markers, and distinct procedural cues provide action feedback. Gameplay and controls remain unchanged. See the art-direction section in the game design for the visual guidelines.
+
+## Camera and inspection
+
+WASD/arrows smoothly pan; the wheel zooms. C frames the selected units or building; Home restores the starting HQ overview. Press I, then click any living unit, building, enemy, or mineral deposit to inspect it. The Inspect button opens a close-up of one selected friendly. Escape/right-click cancels target picking.
+
+Inspection pauses the battle and hides gameplay information. Left-drag orbits, the wheel zooms, and Escape, I, or Exit restores the previous tactical view before resuming. Selection is preserved; pending orders and construction targeting are canceled. Inspection cannot start from the pause menu or after the mission ends.

@@ -83,7 +83,7 @@ namespace Engchanok.StrategyGame.Editor
                 prefabs[(int)kind] = saved.GetComponent<StrategyEntity>(); Object.DestroyImmediate(obj);
             }
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            Camera camera = CameraObject(new Vector3(0, 40, -31), new Color(.025f, .05f, .09f));
+            Camera camera = CameraObject(new Vector3(0, 37, -36.05f), new Color(.025f, .05f, .09f));
             LightObject();
             var perimeter = new GameObject("Headquarters build perimeter").AddComponent<LineRenderer>();
             perimeter.sharedMaterial = beam; perimeter.startWidth = .08f; perimeter.endWidth = .08f;
@@ -119,6 +119,7 @@ namespace Engchanok.StrategyGame.Editor
             var controller = new GameObject("Strategy systems");
             var match = controller.AddComponent<StrategyMatch>(); match.settings = settings; match.prefabs = prefabs; match.beamMaterial = beam;
             var commander = controller.AddComponent<StrategyCommander>(); commander.match = match; commander.view = camera;
+            var cameraController = controller.AddComponent<StrategyCameraController>(); cameraController.match = match; cameraController.commander = commander; cameraController.view = camera;
             var hud = controller.AddComponent<StrategyHud>(); hud.match = match; hud.commander = commander; hud.BuildUI();
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), GamePath);
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

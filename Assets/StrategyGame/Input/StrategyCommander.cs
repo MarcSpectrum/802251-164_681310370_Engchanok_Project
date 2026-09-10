@@ -62,8 +62,21 @@ namespace Engchanok.StrategyGame
         public string PlacementReason { get; private set; }
         GameObject preview;
         Material previewMaterial;
-        Vector3 focus = new(0, 0, -12);
-        float height = 37;
+        public StrategyCameraController CameraController { get; private set; }
+        void Awake()
+        {
+            CameraController = GetComponent<StrategyCameraController>();
+            if (CameraController == null) CameraController = gameObject.AddComponent<StrategyCameraController>();
+            CameraController.match = match; CameraController.commander = this; CameraController.view = view;
+        }
+        public void CancelInteractions()
+        {
+            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; Dragging = false;
+        }
+        public void InspectSelection()
+        {
+            if (Selection.Count == 1 && Selection[0] != null) CameraController.BeginInspection(Selection[0].transform);
+        }
         public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; Placement = kind; } }
         public void CancelPlacement() { Placement = null; if (preview != null) Destroy(preview); if (previewMaterial != null) Destroy(previewMaterial); }
         void OnDestroy() { if (previewMaterial != null) Destroy(previewMaterial); }
@@ -72,6 +85,19 @@ namespace Engchanok.StrategyGame
             if (match.Waves == null || Mouse.current == null || Keyboard.current == null) return;
             Selection.RemoveAll(e => e == null || !e.Alive);
             var mouse = Mouse.current; var keys = Keyboard.current;
+            if (CameraController.Inspecting)
+            {
+                Dragging = false;
+                if (keys.escapeKey.wasPressedThisFrame || keys.iKey.wasPressedThisFrame) CameraController.EndInspection();
+                return;
+            }
+            if (CameraController.Picking)
+            {
+                if (!match.Running || keys.escapeKey.wasPressedThisFrame || keys.iKey.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) CameraController.CancelPicking();
+                else if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var inspectHit, 300)) CameraController.BeginInspection(inspectHit.collider.transform);
+                return;
+            }
+            if (keys.iKey.wasPressedThisFrame && match.Running) { CameraController.BeginPicking(); return; }
             if (keys.escapeKey.wasPressedThisFrame)
             {
                 if (Targeting) { TargetingAttackMove = false; TargetingOrder = null; }
@@ -85,13 +111,6 @@ namespace Engchanok.StrategyGame
             for (int n = 1; n <= 9; n++)
                 if (keys[(Key)((int)Key.Digit1 + n - 1)].wasPressedThisFrame)
                 { if (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed) StoreGroup(n); else RecallGroup(n); }
-            float x = (keys.dKey.isPressed || keys.rightArrowKey.isPressed ? 1 : 0) - (keys.aKey.isPressed || keys.leftArrowKey.isPressed ? 1 : 0);
-            float z = (keys.wKey.isPressed || keys.upArrowKey.isPressed ? 1 : 0) - (keys.sKey.isPressed || keys.downArrowKey.isPressed ? 1 : 0);
-            focus += new Vector3(x, 0, z) * (height * .7f * Time.unscaledDeltaTime);
-            focus.x = Mathf.Clamp(focus.x, -32, 32); focus.z = Mathf.Clamp(focus.z, -32, 32);
-            if (!PointerOverUI) height = Mathf.Clamp(height - mouse.scroll.ReadValue().y * .025f, 18, 60);
-            view.transform.position = focus + new Vector3(0, height, -height * .65f);
-            view.transform.rotation = Quaternion.Euler(57, 0, 0);
             if (TargetingOrder.HasValue)
             {
                 if (mouse.rightButton.wasPressedThisFrame) { TargetingOrder = null; return; }

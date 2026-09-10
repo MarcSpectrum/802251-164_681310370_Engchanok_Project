@@ -51,7 +51,8 @@ namespace Engchanok.StrategyGame
         public WaveState Waves { get; private set; }
         public StrategyEntity Headquarters { get; private set; }
         public bool Paused { get; private set; }
-        public bool Running => !Paused && Waves != null && Waves.Result == MatchResult.Playing;
+        public bool InspectionPaused { get; private set; }
+        public bool Running => !InspectionPaused && !Paused && Waves != null && Waves.Result == MatchResult.Playing;
         public static readonly Vector3 HomePosition = new(0, 0, -12);
         public static readonly Vector3[] SpawnPoints = { new(-29, 0, 31), new(0, 0, 33), new(29, 0, 31) };
         public string Notice { get; private set; } = "Select workers, then right-click a mineral deposit.";
@@ -89,7 +90,9 @@ namespace Engchanok.StrategyGame
             if (Waves.Result != MatchResult.Playing) Time.timeScale = 0;
         }
         public void Notify(string message) { Notice = message; noticeTime = 6; }
-        public void SetPaused(bool paused) { Paused = paused; Time.timeScale = paused || Waves.Result != MatchResult.Playing ? 0 : 1; }
+        public void SetPaused(bool paused) { Paused = paused; ApplyPause(); }
+        public void SetInspectionPaused(bool paused) { InspectionPaused = paused; ApplyPause(); }
+        void ApplyPause() { Time.timeScale = Paused || InspectionPaused || (Waves != null && Waves.Result != MatchResult.Playing) ? 0 : 1; }
         public void Restart() { StrategySession.PracticeRequested = Practice; Time.timeScale = 1; SceneManager.LoadScene("Survival"); }
         public void MainMenu() { Time.timeScale = 1; SceneManager.LoadScene("MainMenu"); }
         void OnDestroy() { Time.timeScale = 1; }

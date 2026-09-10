@@ -45,3 +45,9 @@ Warm directional light and cool ambient light reveal form; luminous accents rema
 The interface uses consistent navy panels, cyan rules, clear action states, separate minerals/HQ/wave status, and training/research progress bars. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
 
 This polish milestone preserves the existing map, balance, five waves, research, tutorial, and controls. Effects follow the match clock, freeze on pause, and are cleared when a match ends or restarts. No camera shake, asset packs, or new dependencies are introduced.
+
+## Camera and inspection
+
+WASD/arrows smoothly pan; the wheel zooms. C frames the selected units or building; Home restores the starting HQ overview. Press I, then click any living unit, building, enemy, or mineral deposit to inspect it. The Inspect button opens a close-up of one selected friendly. Escape/right-click cancels target picking.
+
+Inspection pauses the battle and hides gameplay information. Left-drag orbits, the wheel zooms, and Escape, I, or Exit restores the previous tactical view before resuming. Selection is preserved; pending orders and construction targeting are canceled. Inspection cannot start from the pause menu or after the mission ends.

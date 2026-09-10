@@ -54,6 +54,7 @@ namespace Engchanok.StrategyGame
         {
             if(match==null) return;
             if(match.Waves!=null && match.Waves.Result!=MatchResult.Playing) { foreach(var e in effects) e.line.gameObject.SetActive(false); return; }
+            foreach(var effect in effects) effect.line.enabled = !match.InspectionPaused;
             if(!match.Running) return;
             foreach(var e in effects)
             {

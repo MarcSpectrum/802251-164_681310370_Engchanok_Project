@@ -8,6 +8,10 @@ namespace Engchanok.StrategyGame
         public StrategyMatch match;
         public StrategyCommander commander;
         public Canvas canvas;
+        GameObject inspectionControls;
+        Button inspect;
+        readonly Dictionary<GameObject, bool> inspectionVisibility = new();
+        bool inspectionVisible;
         Text headquartersStatus;
         Image headquartersProgress, trainingProgress;
         readonly Image[] researchProgress = new Image[3];
@@ -41,8 +45,9 @@ namespace Engchanok.StrategyGame
             StrategyUI.Button(top.transform,"Pause",new Vector2(.93f,.15f),new Vector2(1,.85f),()=> { if(match.Waves.Result==MatchResult.Playing) match.SetPaused(!match.Paused); });
             var bottom=StrategyUI.Panel(canvas.transform,"Commands",Vector2.zero,new Vector2(1,.25f),StrategyUI.Ink);
             notice=StrategyUI.Label(bottom.transform,"",new Vector2(.27f,.75f),Vector2.one,22,StrategyUI.Accent);
-            selection=StrategyUI.Label(bottom.transform,"",new Vector2(0,.42f),new Vector2(.27f,1),26);
-            queue=StrategyUI.Label(bottom.transform,"",new Vector2(0,.08f),new Vector2(.27f,.44f),20);
+            selection=StrategyUI.Label(bottom.transform,"",new Vector2(0,.68f),new Vector2(.27f,1),22);
+            inspect=StrategyUI.Button(bottom.transform,"Inspect",new Vector2(.01f,.40f),new Vector2(.25f,.66f),()=>commander.InspectSelection());
+            queue=StrategyUI.Label(bottom.transform,"",new Vector2(0,.08f),new Vector2(.27f,.39f),18);
             trainingProgress=StrategyUI.Progress(bottom.transform,"Training progress",new Vector2(.012f,.035f),new Vector2(.255f,.06f),StrategyUI.Accent);
             StrategyUI.Rule(bottom.transform,new Vector2(0,.99f),Vector2.one);
             for (int i=0;i<3;i++)
@@ -70,7 +75,7 @@ namespace Engchanok.StrategyGame
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false); ShowPage(0);
             help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.25f,.30f),new Vector2(.75f,.82f),StrategyUI.Ink);
-            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nEsc / right-click: cancel targeting\nEsc: pause / resume",new Vector2(0,.15f),Vector2.one,24);
+            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nI: inspect object    C: focus selected    Home: HQ\nEsc / right-click: cancel targeting\nEsc: pause / resume",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
             drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
             overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
@@ -79,6 +84,27 @@ namespace Engchanok.StrategyGame
             resume=StrategyUI.Button(overlay.transform,"Resume",new Vector2(.3f,.42f),new Vector2(.7f,.5f),()=>match.SetPaused(false));
             StrategyUI.Button(overlay.transform,"Restart mission",new Vector2(.3f,.32f),new Vector2(.7f,.4f),()=>match.Restart());
             StrategyUI.Button(overlay.transform,"Main menu",new Vector2(.3f,.22f),new Vector2(.7f,.3f),()=>match.MainMenu()); overlay.gameObject.SetActive(false);
+            inspectionControls=StrategyUI.Panel(canvas.transform,"Inspection controls",new Vector2(.15f,.025f),new Vector2(.85f,.10f),StrategyUI.Ink).gameObject;
+            StrategyUI.Label(inspectionControls.transform,"Drag to orbit / Scroll to zoom / Esc to return",Vector2.zero,new Vector2(.82f,1),20);
+            StrategyUI.Button(inspectionControls.transform,"Exit",new Vector2(.82f,0),Vector2.one,()=>commander.CameraController.EndInspection());
+            inspectionControls.SetActive(false);
+        }
+        void LateUpdate()
+        {
+            bool active = match != null && match.InspectionPaused;
+            if (active != inspectionVisible)
+            {
+                if (active)
+                {
+                    inspectionVisibility.Clear();
+                    foreach (Transform child in canvas.transform)
+                        if (child.gameObject != inspectionControls) inspectionVisibility[child.gameObject] = child.gameObject.activeSelf;
+                }
+                else foreach (var pair in inspectionVisibility) if (pair.Key != null) pair.Key.SetActive(pair.Value);
+                inspectionVisible = active;
+            }
+            if (active) foreach (Transform child in canvas.transform) if (child.gameObject != inspectionControls) child.gameObject.SetActive(false);
+            inspectionControls.SetActive(active);
         }
         void Awake()
         {
@@ -103,7 +129,8 @@ namespace Engchanok.StrategyGame
             train.GetComponentInChildren<Text>().text=producer?$"Train {kind}\n{match.settings.Cost(kind)} minerals":"Select HQ / barracks\nto train units";
             trainingProgress.transform.parent.gameObject.SetActive(producer && selected.Production.Count>0);
             if(producer) StrategyUI.SetProgress(trainingProgress,1-selected.Production.Remaining/Mathf.Max(.1f,kind==EntityKind.Worker?match.settings.workerTraining:match.settings.soldierTraining));
-            bool ready=match.Running && !commander.Placement.HasValue && !commander.Targeting;
+            inspect.interactable=match.Running && selected!=null;
+            bool ready=!(commander.CameraController != null && commander.CameraController.Picking) && match.Running && !commander.Placement.HasValue && !commander.Targeting;
             train.interactable=ready && producer && selected.Production.Count<5 && match.Wallet.Minerals>=match.settings.Cost(kind);
             attack.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Soldier);
             barracks.GetComponentInChildren<Text>().text=$"Build barracks\n{match.settings.barracksCost} minerals";
@@ -132,7 +159,7 @@ namespace Engchanok.StrategyGame
             }
             if(match.Research.Active.HasValue && (selected==null || selected.kind!=EntityKind.Worker)) queue.text+="\n"+StrategySettings.ResearchName(match.Research.Active.Value)+": "+Mathf.CeilToInt(match.Research.Remaining)+"s left";
             var next=match.settings.Composition(Mathf.Min(match.Waves.Wave+1,match.Waves.Total));
-            objective.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
+            objective.gameObject.SetActive(!match.InspectionPaused && match.Waves.Result==MatchResult.Playing);
             objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":"Next wave: "+next.standard+" standard / "+next.runners+" runners / "+next.brutes+" brutes";
             tutorialPanel.gameObject.SetActive(match.Practice && match.Running);
             if(match.Practice)
@@ -150,9 +177,9 @@ namespace Engchanok.StrategyGame
                 for(int i=0;i<3;i++) Highlight(researchButtons[i],step==5 && !match.Research.Active.HasValue && !match.Research.Completed((UpgradeKind)i));
                 Highlight(gather,step==1); Highlight(barracks,step==2); Highlight(train,step==3); Highlight(attack,step==4);
             }
-            notice.text=commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(kind)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
+            notice.text=commander.CameraController != null && commander.CameraController.Picking?"INSPECT / Click a unit, building or mineral deposit. Esc or right-click cancels.":commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(kind)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
             muteLabel.text=StrategyFeedback.Muted?"Muted":"Sound";
-            overlay.gameObject.SetActive(!match.Running); resume.gameObject.SetActive(match.Paused);
+            overlay.gameObject.SetActive(match.Paused || match.Waves.Result!=MatchResult.Playing); resume.gameObject.SetActive(match.Paused);
             resultTitle.text=match.Paused?"MISSION PAUSED":match.Waves.Result==MatchResult.Victory?"OUTPOST SECURED":"OUTPOST LOST";
             resultBody.text=match.Paused?"Orders are on hold.":match.Waves.Result==MatchResult.Victory?$"All {match.Waves.Total} waves defeated.":"Headquarters has been destroyed.";
             drag.gameObject.SetActive(commander.Dragging && match.Running);

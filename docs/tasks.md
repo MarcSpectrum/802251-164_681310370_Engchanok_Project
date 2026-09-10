@@ -42,3 +42,11 @@
 - Reviewed menu, HUD, tutorial, research, placement, combat, pause, victory, and defeat captures across 1280x720, 1920x1080, and 2560x1080. No layout-overflow warnings were produced; all capture dimensions matched their targets.
 - Diagnostic process samples: before polish, 3.59 CPU-seconds per wall second and 648 MB working set; final concurrent replays, 4.70-4.74 CPU-seconds per wall second and 718-723 MB peak sampled working set. These indicate additional presentation cost, but differing concurrent workloads prevent a controlled FPS/regression conclusion. Human playtesting and a controlled frame-time benchmark remain useful follow-up evaluations.
 - Reports, logs, before/after captures, identity checks, and performance samples are under ignored Builds/PolishValidation. Delivery executable: Builds/Windows/OutpostStrategy.exe.
+## Camera and inspection milestone
+- Added smooth tactical panning/zooming, C to frame selection, and Home to restore the HQ overview.
+- Added I-then-click inspection for living entities and mineral deposits, plus a single-selection Inspect button. Left-drag orbits, wheel zooms, and Escape/I/Exit returns to the preserved tactical pose.
+- Inspection has an independent pause flag, blocks gameplay commands, preserves selection, cancels pending interactions, and shows only camera hints and Exit. Target loss, restart, disable, and match completion release inspection safely.
+- Generated Survival scene includes the dedicated camera controller and updated HUD preview; existing tuning and asset GUIDs are preserved.
+- Validation reports and captures: Builds/CameraValidation and Builds/Windows/SmokeCamera.
+- Final validation: Edit Mode 10/10 and Play Mode 19/19 passed (six camera scenarios). Repeat generation preserved tuning and existing metadata; the Windows development build succeeded.
+- Reviewed worker/HQ/mineral close-ups and tactical/returned views across 1280x720, 1920x1080, and 2560x1080. Fixed Inspect-label clipping and inspection wave-hint visibility; the final replay had no layout warnings and restored the selection and running match.

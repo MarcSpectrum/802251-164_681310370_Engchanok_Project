@@ -23,6 +23,7 @@ namespace Engchanok.StrategyGame
         }
         IEnumerator Start()
         {
+            if (Environment.GetCommandLineArgs().Contains("--outpost-camera")) { yield return CameraReplay(); yield break; }
             bool normal = Environment.GetCommandLineArgs().Contains("--outpost-normal-speed");
             bool research = Environment.GetCommandLineArgs().Contains("--outpost-research");
             string directory = Path.Combine(Application.dataPath, "..", research ? "SmokeResearch" : normal ? "SmokeNormal" : "Smoke");
@@ -109,6 +110,28 @@ namespace Engchanok.StrategyGame
             yield return null; yield return null;
             yield return CaptureLayouts(directory,"defeat");
             Application.Quit(result == "Victory" && (!research || allResearch) ? 0 : 1);
+        }
+        IEnumerator CameraReplay()
+        {
+            string directory = Path.Combine(Application.dataPath, "..", "SmokeCamera");
+            Directory.CreateDirectory(directory);
+            StrategySession.PracticeRequested = false;
+            SceneManager.LoadScene("Survival"); yield return null; yield return null;
+            var match = FindFirstObjectByType<StrategyMatch>();
+            var commander = match.GetComponent<StrategyCommander>();
+            var camera = commander.CameraController;
+            var worker = match.Entities.First(e=>e.kind==EntityKind.Worker);
+            commander.Select(worker);
+            yield return CaptureLayouts(directory,"tactical");
+            foreach (var target in new[] { worker.transform, match.Headquarters.transform, FindFirstObjectByType<MineralDeposit>().transform })
+            {
+                camera.BeginInspection(target); yield return new WaitForSecondsRealtime(.5f);
+                yield return CaptureLayouts(directory,"inspect-"+target.name);
+                camera.EndInspection(); yield return new WaitForSecondsRealtime(.5f);
+            }
+            yield return CaptureLayouts(directory,"returned");
+            File.WriteAllText(Path.Combine(directory,"result.txt"), "Camera replay complete; running="+match.Running+"; selection="+commander.Selection.Count);
+            Application.Quit(match.Running && commander.Selection.Contains(worker)?0:1);
         }
         static IEnumerator CaptureLayouts(string directory, string stage)
         {

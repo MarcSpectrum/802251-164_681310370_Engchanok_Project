@@ -7,14 +7,14 @@ A single-player sci-fi RTS made with Unity 6000.3.22f1 and URP. Protect headquar
 2. Choose **Play**. First-time players enter guided practice with six short steps and no enemy waves. **Learn to Play** replays practice anytime.
 3. Complete or skip practice to start a fresh survival mission with headquarters, three workers, and 250 minerals. Practice resources and upgrades do not carry over.
 4. Select workers and use **Gather**, then click teal mineral deposits. Workers automatically deliver minerals to headquarters.
-5. Use **Build** for barracks and turrets; select headquarters or barracks and open **Orders** to train units. Use **Research** to improve your economy or weapons.
+5. Click headquarters for **Build Barracks**, **Build Turret**, worker training, and research. Click barracks to train soldiers or set their rally point.
 
 The Windows development build is `Builds/Windows/OutpostStrategy.exe`.
 
 ## Controls
 | Input | Action |
 | --- | --- |
-| Left click / drag | Select a building or units |
+| Left click / drag | Inspect an object and show its actions / select a unit group |
 | Shift + selection | Add to selection |
 | Right click | Move, attack enemies with soldiers, or gather with workers |
 | Move / Gather buttons | Choose a command, then click its world target |
@@ -23,14 +23,11 @@ The Windows development build is `Builds/Windows/OutpostStrategy.exe`.
 | Ctrl+1-9 / 1-9 | Store / recall a unit group |
 | WASD / arrows | Pan camera |
 | Mouse wheel | Zoom |
-| I then click / Inspect button | Inspect an object; pauses the battle |
-| Left-drag / wheel during inspection | Orbit / zoom |
-| Escape / I during inspection | Return to tactical view and resume |
 | C / Home | Focus selected / return to HQ overview |
 | Escape / right click while targeting | Cancel command targeting or construction |
 | Escape otherwise | Pause / resume |
 
-The **Orders**, **Build**, and **Research** tabs group actions. Labels show requirements and availability; training and research show remaining time. The top strip shows minerals, headquarters health, and wave status. Preparation previews the next enemy composition.
+The object popup shows only relevant actions. Labels show costs and availability; training and research show remaining time. Scroll the HQ popup to reach all research projects. The top strip shows minerals, headquarters health, and wave status. Preparation previews the next enemy composition.
 
 Structures must fit inside the headquarters perimeter, leave mineral deposits accessible, and keep marked approach lanes clear. Production queues hold five units. Orders and progression stop while paused or after the mission ends.
 
@@ -59,8 +56,17 @@ The former shooter prototype remains in Git history. Multiplayer, additional map
 
 The outpost now has detailed geometric unit silhouettes, industrial structures, deck plates, perimeter lighting, and a menu diorama. The HUD separates minerals, headquarters integrity, and wave status, with training and research progress bars. Pooled tracers, impacts, construction pulses, expanding order markers, and distinct procedural cues provide action feedback. Gameplay and controls remain unchanged. See the art-direction section in the game design for the visual guidelines.
 
-## Camera and inspection
+## Camera and live object inspection
 
-WASD/arrows smoothly pan; the wheel zooms. C frames the selected units or building; Home restores the starting HQ overview. Press I, then click any living unit, building, enemy, or mineral deposit to inspect it. The Inspect button opens a close-up of one selected friendly. Escape/right-click cancels target picking.
+Left-click a unit, building, enemy, or mineral deposit to show its information beside it. The tactical camera stays in place and the battle keeps running. The popup follows moving targets, stays within the screen, and holds still while the pointer is over it.
 
-Inspection pauses the battle and hides gameplay information. Left-drag orbits, the wheel zooms, and Escape, I, or Exit restores the previous tactical view before resuming. Selection is preserved; pending orders and construction targeting are canceled. Inspection cannot start from the pause menu or after the mission ends.
+- HQ: train workers, build barracks/turrets, and research upgrades.
+- Workers: Move and Gather, with cargo and current order.
+- Soldiers: Move and Attack-move, with current order and damage.
+- Barracks: train soldiers and Set Rally Point.
+- Turrets, enemies, and deposits: live information; turrets defend automatically.
+- Groups: applicable commands affect eligible units only.
+
+Click empty ground to clear selection and the popup. Its X closes it while retaining friendly selection. Destination and construction targeting temporarily hide the popup; Escape/right-click cancels targeting. Manual pause and mission completion still stop gameplay commands.
+
+WASD/arrows pan, the wheel zooms (or scrolls a popup under the pointer), C frames selection, and Home restores the HQ overview.

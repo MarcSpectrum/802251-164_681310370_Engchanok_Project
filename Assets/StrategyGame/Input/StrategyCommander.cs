@@ -23,19 +23,20 @@ namespace Engchanok.StrategyGame
                 return hits.Count > 0;
             }
         }
+        public event System.Action TargetingStarted;
         public UnitOrder? TargetingOrder { get; private set; }
-        public bool Targeting => TargetingAttackMove || TargetingOrder.HasValue;
+        public bool Targeting => TargetingAttackMove || TargetingOrder.HasValue || TargetingRally;
         public void BeginOrder(UnitOrder order)
         {
             if (!match.Running || (order != UnitOrder.Move && order != UnitOrder.Gather) || !Selection.Exists(e => e != null && e.Alive && (order == UnitOrder.Gather ? e.kind == EntityKind.Worker : e.IsUnit))) return;
-            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = order; Dragging = false;
+            CancelInteractions(); TargetingOrder = order; Dragging = false; TargetingStarted?.Invoke();
         }
         public bool TargetingAttackMove { get; private set; }
         readonly Dictionary<int, List<StrategyEntity>> groups = new();
         public void BeginAttackMove()
         {
             if (!match.Running || !Selection.Exists(e => e != null && e.Alive && e.kind == EntityKind.Soldier)) return;
-            CancelPlacement(); TargetingOrder = null; TargetingAttackMove = true; Dragging = false;
+            CancelInteractions(); TargetingAttackMove = true; Dragging = false; TargetingStarted?.Invoke();
         }
         public void StoreGroup(int number)
         {
@@ -47,7 +48,7 @@ namespace Engchanok.StrategyGame
             if (!match.Running || !groups.TryGetValue(number, out var group)) return;
             group.RemoveAll(e => e == null || !e.Alive);
             if (group.Count == 0) return;
-            ClearSelection(); foreach (var e in group) Select(e);
+            CancelInteractions(); ClearSelection(); foreach (var e in group) Select(e);
         }
         public bool IssueAttackMove(Vector3 destination)
         {
@@ -71,36 +72,48 @@ namespace Engchanok.StrategyGame
         }
         public void CancelInteractions()
         {
-            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; Dragging = false;
+            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; TargetingRally = false; rallyProducer = null; Dragging = false;
         }
-        public void InspectSelection()
+        public Transform InspectedObject { get; private set; }
+        public bool PopupOpen { get; private set; }
+        public bool TargetingRally { get; private set; }
+        StrategyEntity rallyProducer;
+        public void ClosePopup() { PopupOpen = false; }
+        public bool InspectObject(Transform candidate)
         {
-            if (Selection.Count == 1 && Selection[0] != null) CameraController.BeginInspection(Selection[0].transform);
+            if (!match.Running || candidate == null) return false;
+            var entity = candidate.GetComponentInParent<StrategyEntity>();
+            var deposit = candidate.GetComponentInParent<MineralDeposit>();
+            if (entity != null && entity.Alive) candidate = entity.transform;
+            else if (deposit != null) candidate = deposit.transform;
+            else return false;
+            CancelInteractions(); ClearSelection();
+            if (entity != null && !entity.IsEnemy) Select(entity);
+            InspectedObject = candidate; PopupOpen = true;
+            return true;
         }
-        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; Placement = kind; } }
+        public void BeginRallyPoint()
+        {
+            if (!match.Running || Selection.Count != 1 || Selection[0] == null || !Selection[0].Alive || Selection[0].kind != EntityKind.Barracks) return;
+            CancelInteractions(); rallyProducer = Selection[0]; TargetingRally = true; TargetingStarted?.Invoke();
+        }
+        public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelInteractions(); Placement = kind; TargetingStarted?.Invoke(); } }
         public void CancelPlacement() { Placement = null; if (preview != null) Destroy(preview); if (previewMaterial != null) Destroy(previewMaterial); }
         void OnDestroy() { if (previewMaterial != null) Destroy(previewMaterial); }
         void Update()
         {
-            if (match.Waves == null || Mouse.current == null || Keyboard.current == null) return;
+            if (match.Waves == null) return;
             Selection.RemoveAll(e => e == null || !e.Alive);
+            if (InspectedObject == null || (InspectedObject.TryGetComponent<StrategyEntity>(out var inspected) && !inspected.Alive))
+            {
+                InspectedObject = Selection.Count > 0 ? Selection[0].transform : null;
+                if (InspectedObject == null) PopupOpen = false;
+            }
+            if (Mouse.current == null || Keyboard.current == null) return;
             var mouse = Mouse.current; var keys = Keyboard.current;
-            if (CameraController.Inspecting)
-            {
-                Dragging = false;
-                if (keys.escapeKey.wasPressedThisFrame || keys.iKey.wasPressedThisFrame) CameraController.EndInspection();
-                return;
-            }
-            if (CameraController.Picking)
-            {
-                if (!match.Running || keys.escapeKey.wasPressedThisFrame || keys.iKey.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) CameraController.CancelPicking();
-                else if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var inspectHit, 300)) CameraController.BeginInspection(inspectHit.collider.transform);
-                return;
-            }
-            if (keys.iKey.wasPressedThisFrame && match.Running) { CameraController.BeginPicking(); return; }
             if (keys.escapeKey.wasPressedThisFrame)
             {
-                if (Targeting) { TargetingAttackMove = false; TargetingOrder = null; }
+                if (Targeting) CancelInteractions();
                 else if (Placement.HasValue) CancelPlacement();
                 else if (match.Waves.Result == MatchResult.Playing) match.SetPaused(!match.Paused);
                 Dragging = false;
@@ -111,6 +124,16 @@ namespace Engchanok.StrategyGame
             for (int n = 1; n <= 9; n++)
                 if (keys[(Key)((int)Key.Digit1 + n - 1)].wasPressedThisFrame)
                 { if (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed) StoreGroup(n); else RecallGroup(n); }
+            if (TargetingRally)
+            {
+                if (rallyProducer == null || !rallyProducer.Alive || mouse.rightButton.wasPressedThisFrame) { CancelInteractions(); return; }
+                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var rallyHit, 300))
+                {
+                    if (rallyProducer.SetRallyPoint(rallyHit.point)) { StrategyFeedback.Marker(match, rallyHit.point, Color.cyan); CancelInteractions(); }
+                    else match.Notify("Choose reachable ground for the rally point.");
+                }
+                return;
+            }
             if (TargetingOrder.HasValue)
             {
                 if (mouse.rightButton.wasPressedThisFrame) { TargetingOrder = null; return; }
@@ -159,6 +182,7 @@ namespace Engchanok.StrategyGame
                 {
                     var e = hit.collider.GetComponentInParent<StrategyEntity>();
                     if (e != null && !e.IsEnemy) Select(e);
+                    else if (!keys.leftShiftKey.isPressed && !keys.rightShiftKey.isPressed) InspectObject(hit.collider.transform);
                 }
             }
             if (mouse.rightButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var commandHit, 300))
@@ -187,8 +211,13 @@ namespace Engchanok.StrategyGame
                 }
             }
         }
-        public void ClearSelection() { foreach (var e in Selection) if (e != null) e.Selected = false; Selection.Clear(); }
-        public void Select(StrategyEntity entity) { if (match.Running && entity != null && entity.Alive && !entity.IsEnemy && !Selection.Contains(entity)) { Selection.Add(entity); entity.Selected = true; } }
+        public void ClearSelection() { foreach (var e in Selection) if (e != null) e.Selected = false; Selection.Clear(); InspectedObject = null; PopupOpen = false; }
+        public void Select(StrategyEntity entity)
+        {
+            if (!match.Running || entity == null || !entity.Alive || entity.IsEnemy) return;
+            if (!Selection.Contains(entity)) Selection.Add(entity);
+            entity.Selected = true; InspectedObject = entity.transform; PopupOpen = true;
+        }
         void UpdatePreview()
         {
             if (preview == null)

@@ -2,63 +2,17 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 namespace Engchanok.StrategyGame
 {
-    public enum StrategyCameraState { Tactical, Picking, Entering, Inspecting, Returning }
 
     public sealed class StrategyCameraController : MonoBehaviour
     {
         public StrategyMatch match;
         public StrategyCommander commander;
         public Camera view;
-        [Min(.01f)] public float transitionSeconds = .35f, smoothingSeconds = .12f;
-        public float orbitSensitivity = .25f;
-        public StrategyCameraState State { get; private set; }
-        public bool Inspecting => State == StrategyCameraState.Entering || State == StrategyCameraState.Inspecting || State == StrategyCameraState.Returning;
-        public bool Picking => State == StrategyCameraState.Picking;
+        [Min(.01f)] public float smoothingSeconds = .12f;
         Vector3 focus = new(0, 0, -12), desiredFocus = new(0, 0, -12);
         float height = 37, desiredHeight = 37;
-        Transform target;
-        Bounds bounds;
-        float yaw, pitch, distance, minimumDistance, elapsed;
-        Vector3 savedPosition, fromPosition;
-        Quaternion savedRotation, fromRotation;
-        bool orbiting;
         Vector3 panVelocity;
 
-        public void BeginPicking()
-        {
-            if (!match.Running || Inspecting) return;
-            commander.CancelInteractions(); State = StrategyCameraState.Picking;
-        }
-        public void CancelPicking() { if (Picking) State = StrategyCameraState.Tactical; }
-        public bool BeginInspection(Transform candidate)
-        {
-            if (!match.Running || Inspecting || candidate == null) return false;
-            var entity = candidate.GetComponentInParent<StrategyEntity>();
-            var deposit = candidate.GetComponentInParent<MineralDeposit>();
-            if (entity != null && entity.Alive) target = entity.transform;
-            else if (deposit != null) target = deposit.transform;
-            else return false;
-            commander.CancelInteractions();
-            bounds = VisualBounds(target);
-            savedPosition = view.transform.position; savedRotation = view.transform.rotation;
-            panVelocity = Vector3.zero;
-            desiredFocus = focus; desiredHeight = height;
-            yaw = target.eulerAngles.y + 180; pitch = 35;
-            minimumDistance = bounds.extents.magnitude + view.nearClipPlane + .3f;
-            distance = Mathf.Max(minimumDistance, FrameDistance(bounds) * 1.15f);
-            match.SetInspectionPaused(true);
-            StartTransition(StrategyCameraState.Entering);
-            return true;
-        }
-        public void EndInspection()
-        {
-            if (!Inspecting || State == StrategyCameraState.Returning) return;
-            orbiting = false; StartTransition(StrategyCameraState.Returning);
-        }
-        void StartTransition(StrategyCameraState state)
-        {
-            State = state; elapsed = 0; fromPosition = view.transform.position; fromRotation = view.transform.rotation;
-        }
         public static Bounds VisualBounds(Transform root)
         {
             var result = new Bounds(root.position + Vector3.up, Vector3.one * 2); bool found = false;
@@ -77,7 +31,7 @@ namespace Engchanok.StrategyGame
         }
         public void FocusSelection()
         {
-            if (!match.Running || State != StrategyCameraState.Tactical) return;
+            if (!match.Running) return;
             Bounds combined = default; bool found = false;
             foreach (var entity in commander.Selection)
             {
@@ -93,55 +47,15 @@ namespace Engchanok.StrategyGame
         }
         public void ResetToHeadquarters()
         {
-            if (!match.Running || State != StrategyCameraState.Tactical) return;
+            if (!match.Running) return;
             panVelocity = Vector3.zero;
             desiredFocus = new Vector3(0, 0, -12); desiredHeight = 37;
         }
         void ClampFocus() { desiredFocus.x = Mathf.Clamp(desiredFocus.x, -32, 32); desiredFocus.z = Mathf.Clamp(desiredFocus.z, -32, 32); }
-        void OnDisable()
-        {
-            if (!Inspecting) return;
-            if (view != null) view.transform.SetPositionAndRotation(savedPosition, savedRotation);
-            if (match != null) match.SetInspectionPaused(false);
-            State = StrategyCameraState.Tactical; target = null; orbiting = false;
-        }
         void LateUpdate()
         {
             if (match == null || view == null || match.Waves == null) return;
-            if (match.Waves.Result != MatchResult.Playing)
-            {
-                if (Inspecting) { view.transform.SetPositionAndRotation(savedPosition, savedRotation); match.SetInspectionPaused(false); }
-                State = StrategyCameraState.Tactical; return;
-            }
             var mouse = Mouse.current; var keys = Keyboard.current;
-            if (Inspecting)
-            {
-                if ((target == null || (target.TryGetComponent<StrategyEntity>(out var e) && !e.Alive)) && State != StrategyCameraState.Returning) EndInspection();
-                if (State == StrategyCameraState.Inspecting && mouse != null)
-                {
-                    if (mouse.leftButton.wasPressedThisFrame) orbiting = !commander.PointerOverUI;
-                    if (!mouse.leftButton.isPressed) orbiting = false;
-                    if (orbiting && !commander.PointerOverUI) { var delta = mouse.delta.ReadValue(); yaw += delta.x * orbitSensitivity; pitch = Mathf.Clamp(pitch - delta.y * orbitSensitivity, 15, 80); }
-                    if (!commander.PointerOverUI) distance = Mathf.Clamp(distance - mouse.scroll.ReadValue().y * .0025f * distance, minimumDistance, Mathf.Max(minimumDistance * 6, FrameDistance(bounds) * 3));
-                }
-                Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
-                Vector3 position = bounds.center - rotation * Vector3.forward * distance;
-                position.y = Mathf.Max(position.y, view.nearClipPlane + .2f);
-                if (State == StrategyCameraState.Returning) { position = savedPosition; rotation = savedRotation; }
-                if (State == StrategyCameraState.Entering || State == StrategyCameraState.Returning)
-                {
-                    elapsed += Time.unscaledDeltaTime;
-                    float t = Mathf.SmoothStep(0, 1, Mathf.Clamp01(elapsed / Mathf.Max(.01f, transitionSeconds)));
-                    view.transform.SetPositionAndRotation(Vector3.Lerp(fromPosition, position, t), Quaternion.Slerp(fromRotation, rotation, t));
-                    if (t >= 1)
-                    {
-                        if (State == StrategyCameraState.Returning) { State = StrategyCameraState.Tactical; target = null; match.SetInspectionPaused(false); }
-                        else State = StrategyCameraState.Inspecting;
-                    }
-                }
-                else view.transform.SetPositionAndRotation(position, rotation);
-                return;
-            }
             if (!match.Running) return;
             if (keys != null)
             {

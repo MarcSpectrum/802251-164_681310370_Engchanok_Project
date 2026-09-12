@@ -39,7 +39,7 @@ namespace Engchanok.StrategyGame
             yield return CaptureLayouts(directory, "tutorial-select");
             practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Worker));
             yield return null; yield return CaptureLayouts(directory,"tutorial-gather");
-            practice.Deliver(20); yield return null; yield return CaptureLayouts(directory,"tutorial-build");
+            practice.Deliver(20); practiceCommander.InspectObject(practice.Headquarters.transform); yield return null; yield return CaptureLayouts(directory,"tutorial-build");
             practice.Build(EntityKind.Barracks,new Vector3(-9,0,-11)); yield return null;
             practiceCommander.ClearSelection(); practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Barracks));
             yield return CaptureLayouts(directory,"tutorial-train");
@@ -47,6 +47,8 @@ namespace Engchanok.StrategyGame
             practiceCommander.ClearSelection(); practiceCommander.Select(practice.Entities.First(e=>e.kind==EntityKind.Soldier));
             yield return CaptureLayouts(directory,"tutorial-order");
             practiceCommander.IssueAttackMove(new Vector3(0,0,-2)); yield return null;
+            practiceCommander.InspectObject(practice.Headquarters.transform); yield return null;
+            practice.GetComponent<StrategyHud>().canvas.GetComponentInChildren<UnityEngine.UI.ScrollRect>().verticalNormalizedPosition=0;
             yield return CaptureLayouts(directory,"tutorial-research");
             practice.StartResearch(UpgradeKind.Mining); yield return null;
             yield return CaptureLayouts(directory,"research-progress");
@@ -64,9 +66,9 @@ namespace Engchanok.StrategyGame
             var commander = FindFirstObjectByType<StrategyCommander>(); commander.Select(match.Headquarters);
             match.SetPaused(true); yield return CaptureLayouts(directory, "pause"); match.SetPaused(false);
             yield return CaptureLayouts(directory, "hud");
-            var hud=FindFirstObjectByType<StrategyHud>(); hud.ShowPage(1); yield return CaptureLayouts(directory,"build");
+            commander.InspectObject(match.Headquarters.transform); yield return CaptureLayouts(directory,"build");
             commander.BeginPlacement(EntityKind.Turret); yield return CaptureLayouts(directory,"placement"); commander.CancelPlacement();
-            hud.ShowPage(2); yield return CaptureLayouts(directory,"research"); hud.ShowPage(0);
+            commander.InspectObject(match.Headquarters.transform); yield return CaptureLayouts(directory,"research"); commander.ClosePopup();
             Time.timeScale = normal ? 1 : 10;
             float start = Time.realtimeSinceStartup;
             bool captured = false;
@@ -119,16 +121,34 @@ namespace Engchanok.StrategyGame
             SceneManager.LoadScene("Survival"); yield return null; yield return null;
             var match = FindFirstObjectByType<StrategyMatch>();
             var commander = match.GetComponent<StrategyCommander>();
-            var camera = commander.CameraController;
             var worker = match.Entities.First(e=>e.kind==EntityKind.Worker);
             commander.Select(worker);
             yield return CaptureLayouts(directory,"tactical");
             foreach (var target in new[] { worker.transform, match.Headquarters.transform, FindFirstObjectByType<MineralDeposit>().transform })
             {
-                camera.BeginInspection(target); yield return new WaitForSecondsRealtime(.5f);
+                commander.InspectObject(target); yield return new WaitForSecondsRealtime(.5f);
                 yield return CaptureLayouts(directory,"inspect-"+target.name);
-                camera.EndInspection(); yield return new WaitForSecondsRealtime(.5f);
+                commander.ClosePopup(); yield return new WaitForSecondsRealtime(.5f);
             }
+            commander.InspectObject(match.Headquarters.transform); yield return null;
+            match.GetComponent<StrategyHud>().canvas.GetComponentInChildren<UnityEngine.UI.ScrollRect>().verticalNormalizedPosition=0;
+            yield return CaptureLayouts(directory,"hq-research");
+            match.Wallet.Deposit(1000); match.StartResearch(UpgradeKind.Mining);
+            yield return CaptureLayouts(directory,"hq-research-progress");
+            var soldier=match.Spawn(EntityKind.Soldier,new Vector3(-6,0,-12));
+            var turret=match.Spawn(EntityKind.Turret,new Vector3(7,0,-11));
+            var barracks=match.Spawn(EntityKind.Barracks,new Vector3(-9,0,-11));
+            var enemy=match.Spawn(EntityKind.Brute,new Vector3(15,0,10));
+            foreach(var entity in new[]{soldier,turret,barracks,enemy})
+            {
+                commander.InspectObject(entity.transform); yield return CaptureLayouts(directory,"inspect-"+entity.kind);
+            }
+            commander.InspectObject(worker.transform); commander.Select(soldier);
+            yield return CaptureLayouts(directory,"group");
+            commander.InspectObject(barracks.transform); commander.BeginRallyPoint();
+            yield return CaptureLayouts(directory,"rally-targeting"); commander.CancelInteractions();
+            match.SetPaused(true); yield return CaptureLayouts(directory,"pause"); match.SetPaused(false);
+            commander.InspectObject(worker.transform);
             yield return CaptureLayouts(directory,"returned");
             File.WriteAllText(Path.Combine(directory,"result.txt"), "Camera replay complete; running="+match.Running+"; selection="+commander.Selection.Count);
             Application.Quit(match.Running && commander.Selection.Contains(worker)?0:1);

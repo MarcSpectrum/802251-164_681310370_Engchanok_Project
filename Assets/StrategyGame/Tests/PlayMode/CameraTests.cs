@@ -1,5 +1,4 @@
 using System.Collections;
-using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
@@ -7,6 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Engchanok.StrategyGame.Tests
 {
@@ -15,130 +15,121 @@ namespace Engchanok.StrategyGame.Tests
         StrategyMatch match;
         StrategyCommander commander;
         StrategyCameraController camera;
+        StrategyHud hud;
+        Transform Popup => hud.canvas.transform.Find("Object popup");
+        Button Action(string name) => Popup.Find("Action viewport/Actions/"+name).GetComponent<Button>();
+        string[] Actions => Popup.Find("Action viewport/Actions").GetComponentsInChildren<Button>().Select(b=>b.name).ToArray();
         [UnitySetUp] public IEnumerator Setup()
         {
-            StrategySession.PracticeRequested = false;
-            SceneManager.LoadScene("Survival");
+            StrategySession.PracticeRequested=false; SceneManager.LoadScene("Survival");
             yield return null; yield return null;
-            match = Object.FindFirstObjectByType<StrategyMatch>();
-            commander = match.GetComponent<StrategyCommander>(); camera = commander.CameraController;
+            match=Object.FindFirstObjectByType<StrategyMatch>(); commander=match.GetComponent<StrategyCommander>();
+            camera=commander.CameraController; hud=match.GetComponent<StrategyHud>();
         }
         [UnityTearDown] public IEnumerator Cleanup()
         {
             SceneManager.LoadScene("MainMenu"); yield return null;
         }
-        [UnityTest] public IEnumerator InspectionFreezesSimulationAndRestoresSelectionAndPose()
+        [UnityTest] public IEnumerator InspectionKeepsCameraAndSimulationLive()
         {
-            var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
-            var deposit = Object.FindFirstObjectByType<MineralDeposit>();
-            var soldier = match.Spawn(EntityKind.Soldier,new Vector3(5,0,-8));
-            var enemy = match.Spawn(EntityKind.Enemy,new Vector3(6,0,-8));
-            soldier.Attack(enemy);
-            float enemyHealth = enemy.Health.Current;
-            worker.Gather(deposit); commander.Select(worker);
-            Assert.IsTrue(match.Train(match.Headquarters));
-            Assert.IsTrue(match.StartResearch(UpgradeKind.Mining));
-            commander.BeginOrder(UnitOrder.Move);
-            Vector3 position = camera.view.transform.position, workerPosition = worker.transform.position;
-            Quaternion rotation = camera.view.transform.rotation;
-            float countdown = match.Waves.Countdown, research = match.Research.Remaining, training = match.Headquarters.Production.Remaining;
-            int stock = deposit.Stock.Remaining;
-            Assert.IsTrue(camera.BeginInspection(worker.transform));
-            Assert.IsFalse(commander.Targeting); Assert.IsFalse(match.Running); Assert.IsFalse(match.Paused);
-            Assert.IsTrue(match.InspectionPaused); Assert.AreEqual(0, Time.timeScale);
-            Assert.IsFalse(worker.Move(Vector3.zero)); Assert.IsFalse(match.Train(match.Headquarters));
+            var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+            worker.Gather(Object.FindFirstObjectByType<MineralDeposit>());
+            Assert.IsTrue(match.Train(match.Headquarters)); Assert.IsTrue(match.StartResearch(UpgradeKind.Mining));
+            var position=camera.view.transform.position; var rotation=camera.view.transform.rotation;
+            float countdown=match.Waves.Countdown, research=match.Research.Remaining, training=match.Headquarters.Production.Remaining;
+            Assert.IsTrue(commander.InspectObject(worker.transform));
             yield return new WaitForSecondsRealtime(.5f);
-            Assert.AreEqual(StrategyCameraState.Inspecting, camera.State);
-            Assert.AreEqual(countdown, match.Waves.Countdown); Assert.AreEqual(research, match.Research.Remaining);
-            Assert.AreEqual(training, match.Headquarters.Production.Remaining); Assert.AreEqual(stock, deposit.Stock.Remaining);
-            Assert.AreEqual(workerPosition, worker.transform.position); Assert.AreEqual(enemyHealth, enemy.Health.Current);
-            Assert.IsFalse(match.GetComponent<StrategyHud>().canvas.transform.Find("Mission overlay").gameObject.activeSelf);
-            Assert.IsFalse(match.GetComponent<StrategyHud>().canvas.transform.Find("Commands").gameObject.activeSelf);
-            foreach (Transform child in match.GetComponent<StrategyHud>().canvas.transform)
-                if (child.name != "Inspection controls") Assert.IsFalse(child.gameObject.activeSelf,"Inspection leaked HUD: "+child.name);
-            camera.EndInspection(); Assert.IsTrue(match.InspectionPaused);
-            yield return new WaitForSecondsRealtime(.4f);
-            Assert.IsTrue(match.Running); Assert.AreEqual(1, Time.timeScale);
-            Assert.Less(Vector3.Distance(position, camera.view.transform.position), .001f);
-            Assert.Less(Quaternion.Angle(rotation, camera.view.transform.rotation), .001f);
-            CollectionAssert.AreEqual(new[] { worker }, commander.Selection);
+            Assert.IsTrue(hud.PopupVisible); Assert.IsTrue(match.Running); Assert.AreEqual(1,Time.timeScale);
+            Assert.Less(match.Waves.Countdown,countdown); Assert.Less(match.Research.Remaining,research);
+            Assert.Less(match.Headquarters.Production.Remaining,training);
+            Assert.Less(Vector3.Distance(position,camera.view.transform.position),.001f);
+            Assert.Less(Quaternion.Angle(rotation,camera.view.transform.rotation),.001f);
+            CollectionAssert.AreEqual(new[]{worker},commander.Selection);
+            Assert.IsTrue(hud.canvas.transform.Find("Status").gameObject.activeSelf);
         }
-        [UnityTest] public IEnumerator TargetsFrameAcrossAspectRatiosAndPauseOwnershipIsPreserved()
+        [UnityTest] public IEnumerator EveryObjectShowsOnlyRelevantActionsAndLiveDetails()
         {
-            var enemy = match.Spawn(EntityKind.Brute, new Vector3(0,0,15));
-            var targets = new[] { match.Entities.First(e => e.kind == EntityKind.Worker).transform, match.Headquarters.transform, enemy.transform, Object.FindFirstObjectByType<MineralDeposit>().transform };
-            foreach (float aspect in new[] { 1280f/720, 1920f/1080, 2560f/1080 })
-            foreach (var target in targets)
+            commander.InspectObject(match.Headquarters.transform); yield return null;
+            CollectionAssert.AreEquivalent(new[]{"Train","Build barracks","Build turret","Improved Mining","Soldier Weapons","Turret Weapons"},Actions);
+            match.Wallet.TrySpend(match.Wallet.Minerals); yield return null;
+            Assert.IsFalse(Action("Train").interactable);
+            StringAssert.Contains("Need",Action("Train").GetComponentInChildren<Text>().text);
+            match.Wallet.Deposit(1000); Action("Train").onClick.Invoke(); yield return null;
+            Assert.AreEqual(1,match.Headquarters.Production.Count);
+            Assert.IsTrue(Popup.Find("Training progress").gameObject.activeSelf);
+            Action("Improved Mining").onClick.Invoke(); yield return null;
+            StringAssert.Contains("Researching",Action("Improved Mining").GetComponentInChildren<Text>().text);
+            foreach(var kind in new[]{EntityKind.Worker,EntityKind.Soldier,EntityKind.Barracks,EntityKind.Turret,EntityKind.Enemy})
             {
-                camera.view.aspect = aspect;
-                Assert.IsTrue(camera.BeginInspection(target));
-                yield return new WaitForSecondsRealtime(.4f);
-                Bounds bounds = StrategyCameraController.VisualBounds(target);
-                for (int i=0; i<8; i++)
-                {
-                    Vector3 corner = bounds.center + Vector3.Scale(bounds.extents, new Vector3((i&1)==0?-1:1,(i&2)==0?-1:1,(i&4)==0?-1:1));
-                    Vector3 point = camera.view.WorldToViewportPoint(corner);
-                    Assert.That(point.x, Is.InRange(0f,1f)); Assert.That(point.y, Is.InRange(0f,1f)); Assert.Greater(point.z,camera.view.nearClipPlane);
-                }
-                camera.EndInspection(); yield return new WaitForSecondsRealtime(.4f);
+                var entity=kind==EntityKind.Worker?match.Entities.First(e=>e.kind==kind):match.Spawn(kind,new Vector3(10,0,-10));
+                commander.InspectObject(entity.transform); yield return null;
+                string[] expected=kind==EntityKind.Worker?new[]{"Move","Gather"}:kind==EntityKind.Soldier?new[]{"Move","Attack-move [F]"}:kind==EntityKind.Barracks?new[]{"Train","Set rally point"}:new string[0];
+                CollectionAssert.AreEquivalent(expected,Actions,kind.ToString());
+                if(entity.IsEnemy) Assert.IsEmpty(commander.Selection);
+                entity.Damage(10); yield return null;
+                Assert.IsTrue(Popup.GetComponentsInChildren<Text>().Any(t=>t.text.Contains(Mathf.CeilToInt(entity.Health.Current)+" HP")));
+                if(kind!=EntityKind.Worker) Object.Destroy(entity.gameObject);
             }
-            camera.view.ResetAspect();
-            match.SetPaused(true); Assert.IsFalse(camera.BeginInspection(targets[0]));
-            match.SetPaused(false); Assert.IsTrue(camera.BeginInspection(targets[0]));
-            match.SetPaused(true); camera.EndInspection(); yield return new WaitForSecondsRealtime(.4f);
-            Assert.IsTrue(match.Paused); Assert.IsFalse(match.InspectionPaused); Assert.AreEqual(0,Time.timeScale);
+            var deposit=Object.FindFirstObjectByType<MineralDeposit>();
+            commander.InspectObject(deposit.transform); deposit.Extract(17); yield return null;
+            Assert.IsEmpty(Actions); Assert.IsEmpty(commander.Selection);
+            Assert.IsTrue(Popup.GetComponentsInChildren<Text>().Any(t=>t.text.Contains(deposit.Stock.Remaining+" minerals remaining")));
         }
-        [UnityTest] public IEnumerator PickingCancellationLostTargetAndRestartAreSafe()
+        [UnityTest] public IEnumerator GroupsCloseTargetLossAndPauseRemainSafe()
         {
-            var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
-            commander.Select(worker); commander.BeginPlacement(EntityKind.Turret);
-            camera.BeginPicking(); Assert.IsTrue(camera.Picking); Assert.IsNull(commander.Placement); Assert.IsTrue(match.Running);
-            Assert.IsFalse(camera.BeginInspection(new GameObject("Invalid target").transform)); Assert.IsTrue(camera.Picking);
-            camera.CancelPicking(); Assert.AreEqual(StrategyCameraState.Tactical,camera.State);
-            Assert.IsTrue(camera.BeginInspection(worker.transform)); Object.Destroy(worker.gameObject);
-            yield return new WaitForSecondsRealtime(.5f);
-            Assert.IsFalse(camera.Inspecting); Assert.IsTrue(match.Running);
-            camera.BeginInspection(match.Headquarters.transform); match.Restart(); yield return null; yield return null;
-            Assert.IsFalse(Object.FindFirstObjectByType<StrategyMatch>().InspectionPaused); Assert.AreEqual(1,Time.timeScale);
+            var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+            var soldier=match.Spawn(EntityKind.Soldier,new Vector3(5,0,-10));
+            commander.Select(worker); commander.Select(soldier); yield return null;
+            CollectionAssert.AreEquivalent(new[]{"Move","Gather","Attack-move [F]"},Actions);
+            commander.StoreGroup(1); commander.ClosePopup(); yield return null;
+            Assert.IsFalse(hud.PopupVisible); Assert.AreEqual(2,commander.Selection.Count);
+            commander.RecallGroup(1); yield return null; Assert.IsTrue(hud.PopupVisible);
+            commander.BeginOrder(UnitOrder.Gather); yield return null; Assert.IsFalse(hud.PopupVisible);
+            commander.CancelInteractions(); yield return null; Assert.IsTrue(hud.PopupVisible);
+            match.SetPaused(true); yield return null; Assert.IsFalse(hud.PopupVisible);
+            Assert.IsFalse(commander.InspectObject(worker.transform)); Assert.IsFalse(match.Train(match.Headquarters));
+            commander.BeginAttackMove(); Assert.IsFalse(commander.Targeting);
+            match.SetPaused(false); commander.InspectObject(soldier.transform); soldier.Damage(99999);
+            yield return null; yield return null; Assert.IsFalse(hud.PopupVisible);
+            commander.InspectObject(worker.transform); match.Waves.Tick(0,0,false);
+            yield return null; Assert.IsFalse(hud.PopupVisible); Assert.IsFalse(worker.Move(Vector3.zero));
+            match.Restart(); yield return null; yield return null;
+            Assert.IsFalse(Object.FindFirstObjectByType<StrategyHud>().PopupVisible); Assert.AreEqual(1,Time.timeScale);
         }
-        [UnityTest] public IEnumerator PointerPickingOrbitAndUIIsolation()
+        [UnityTest] public IEnumerator PointerSelectionPopupIsolationAndRallyTargeting()
         {
-            var mouse = InputSystem.AddDevice<Mouse>(); var keyboard = InputSystem.AddDevice<Keyboard>();
-            var background = InputSystem.settings.backgroundBehavior;
+            var mouse=InputSystem.AddDevice<Mouse>(); var keyboard=InputSystem.AddDevice<Keyboard>();
+            var background=InputSystem.settings.backgroundBehavior;
 #if UNITY_EDITOR
-            var editorBehavior = InputSystem.settings.editorInputBehaviorInPlayMode;
-            InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+            var editorBehavior=InputSystem.settings.editorInputBehaviorInPlayMode;
+            InputSystem.settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
 #endif
-            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+            InputSystem.settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;
             InputSystem.EnableDevice(mouse); InputSystem.EnableDevice(keyboard);
             try
             {
-                var worker = match.Entities.First(e=>e.kind==EntityKind.Worker); commander.Select(worker);
-                Vector3 destination = worker.OrderDestination;
-                yield return null;
-                camera.BeginPicking();
-                Send(mouse,new MouseState { position = new Vector2(Screen.width*.95f,Screen.height*.95f),buttons=1 });
-                Assert.IsTrue(camera.Picking); Assert.IsFalse(match.InspectionPaused);
-                Send(mouse,new MouseState());
-                Vector2 point = camera.view.WorldToScreenPoint(worker.transform.position+Vector3.up);
-                Physics.SyncTransforms();
-                Assert.IsTrue(Physics.Raycast(camera.view.ScreenPointToRay(point),out var hit,300));
-                Assert.AreSame(worker,hit.collider.GetComponentInParent<StrategyEntity>(),"Target ray hit "+hit.collider.name);
-                Send(mouse,new MouseState { position=point,buttons=1 });
-                Assert.IsTrue(camera.Inspecting,"State="+camera.State+", UI="+commander.PointerOverUI+", pointer="+commander.Pointer+", expected="+point+", pressed="+mouse.leftButton.wasPressedThisFrame);
-                Send(mouse,new MouseState { position=point });
-                yield return new WaitForSecondsRealtime(.4f);
-                Quaternion before = camera.view.transform.rotation;
-                Vector2 ui = new Vector2(Screen.width*.4f,Screen.height*.06f);
-                Send(mouse,new MouseState { position=ui,buttons=1,delta=new Vector2(80,20),scroll=new Vector2(0,120) }); camera.SendMessage("LateUpdate");
-                Assert.Less(Quaternion.Angle(before,camera.view.transform.rotation),.001f);
-                Send(mouse,new MouseState { position=ui }); camera.SendMessage("LateUpdate");
-                point=new Vector2(Screen.width*.5f,Screen.height*.5f);
-                Send(mouse,new MouseState { position=point,buttons=1,delta=new Vector2(80,20) }); camera.SendMessage("LateUpdate");
-                Assert.Greater(Quaternion.Angle(before,camera.view.transform.rotation),1);
-                Send(mouse,new MouseState { position=point,buttons=2 });
-                Assert.AreEqual(destination,worker.OrderDestination); CollectionAssert.AreEqual(new[]{worker},commander.Selection);
-                Send(mouse,new MouseState { position=point });
+                var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+                Vector2 point=camera.view.WorldToScreenPoint(worker.transform.position+Vector3.up);
+                Physics.SyncTransforms(); Send(mouse,new MouseState{position=point,buttons=1}); Send(mouse,new MouseState{position=point});
+                yield return null; Assert.IsTrue(hud.PopupVisible); Assert.Contains(worker,commander.Selection);
+                var destination=worker.OrderDestination;
+                point=RectTransformUtility.WorldToScreenPoint(null,Popup.TransformPoint(new Vector3(50,-35,0)));
+                Send(mouse,new MouseState{position=point,buttons=2}); Send(mouse,new MouseState{position=point});
+                Assert.AreEqual(destination,worker.OrderDestination); Assert.Contains(worker,commander.Selection);
+                commander.BeginOrder(UnitOrder.Move); yield return null;
+                point=camera.view.WorldToScreenPoint(new Vector3(-7,0,-5));
+                Send(mouse,new MouseState{position=point,buttons=1}); Send(mouse,new MouseState{position=point});
+                Assert.IsFalse(commander.Targeting); Assert.Less(Vector3.Distance(worker.OrderDestination,new Vector3(-7,0,-5)),1);
+                match.Wallet.Deposit(1000); Assert.IsTrue(match.Build(EntityKind.Barracks,new Vector3(-9,0,-11)));
+                var producer=match.Entities.First(e=>e.kind==EntityKind.Barracks);
+                commander.InspectObject(producer.transform); yield return null;
+                Action("Set rally point").onClick.Invoke(); yield return null; Assert.IsTrue(commander.TargetingRally); Assert.IsFalse(hud.PopupVisible);
+                point=camera.view.WorldToScreenPoint(new Vector3(0,0,-5));
+                Send(mouse,new MouseState{position=point,buttons=1}); Send(mouse,new MouseState{position=point});
+                Assert.IsFalse(commander.TargetingRally); Assert.IsTrue(producer.RallyPoint.HasValue);
+                Assert.Less(Vector3.Distance(producer.RallyPoint.Value,new Vector3(0,0,-5)),1);
+                commander.BeginRallyPoint(); Send(mouse,new MouseState{position=point,buttons=2}); Send(mouse,new MouseState{position=point});
+                Assert.IsFalse(commander.Targeting); Assert.IsFalse(match.Paused);
             }
             finally
             {
@@ -149,27 +140,29 @@ namespace Engchanok.StrategyGame.Tests
                 InputSystem.RemoveDevice(mouse); InputSystem.RemoveDevice(keyboard);
             }
         }
-        [UnityTest] public IEnumerator FinishedMatchAndDisabledCameraReleaseInspectionSafely()
-        {
-            camera.BeginInspection(match.Headquarters.transform);
-            camera.enabled = false;
-            Assert.IsFalse(match.InspectionPaused); Assert.IsTrue(match.Running);
-            camera.enabled = true;
-            camera.BeginInspection(match.Headquarters.transform);
-            match.Waves.Tick(0,0,false);
-            yield return null; yield return null;
-            Assert.IsFalse(camera.Inspecting); Assert.IsFalse(match.InspectionPaused);
-            Assert.IsFalse(match.Running); Assert.AreEqual(0,Time.timeScale);
-            Assert.IsFalse(camera.BeginInspection(match.Headquarters.transform));
-        }
         static void Send(Mouse mouse, MouseState state)
         {
             InputSystem.QueueStateEvent(mouse,state); InputSystem.Update();
             Object.FindFirstObjectByType<StrategyCommander>().SendMessage("Update");
         }
+        [UnityTest] public IEnumerator PopupClampsToScreenAndResearchScrolls()
+        {
+            commander.InspectObject(match.Headquarters.transform); yield return null;
+            var corners=new Vector3[4]; ((RectTransform)Popup).GetWorldCorners(corners);
+            foreach(var corner in corners)
+            {
+                Assert.That(corner.x,Is.InRange(0f,(float)Screen.width)); Assert.That(corner.y,Is.InRange(0f,Screen.height*.895f));
+            }
+            var scroll=Popup.GetComponentInChildren<ScrollRect>();
+            Assert.Greater(scroll.content.rect.height,scroll.viewport.rect.height);
+            scroll.verticalNormalizedPosition=0; yield return null;
+            Assert.Less(scroll.verticalNormalizedPosition,.01f);
+            commander.InspectObject(match.Entities.First(e=>e.kind==EntityKind.Worker).transform); yield return null;
+            Assert.LessOrEqual(scroll.content.rect.height,scroll.viewport.rect.height+1);
+        }
         [UnityTest] public IEnumerator FocusAndHeadquartersResetStayBounded()
         {
-            var start = camera.view.transform.position;
+            var start=camera.view.transform.position;
             camera.FocusSelection(); yield return new WaitForSecondsRealtime(.2f); Assert.AreEqual(start,camera.view.transform.position);
             foreach(var e in match.Entities.Where(e=>e.kind==EntityKind.Worker)) commander.Select(e);
             camera.FocusSelection(); yield return new WaitForSecondsRealtime(1.2f);

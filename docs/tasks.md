@@ -50,3 +50,14 @@
 - Validation reports and captures: Builds/CameraValidation and Builds/Windows/SmokeCamera.
 - Final validation: Edit Mode 10/10 and Play Mode 19/19 passed (six camera scenarios). Repeat generation preserved tuning and existing metadata; the Windows development build succeeded.
 - Reviewed worker/HQ/mineral close-ups and tactical/returned views across 1280x720, 1920x1080, and 2560x1080. Fixed Inspect-label clipping and inspection wave-hint visibility; the final replay had no layout warnings and restored the selection and running match.
+
+## Live object popup milestone
+- Replaced fixed Orders / Build / Research tabs with object-following popups. HQ owns construction, worker training, and research; workers/soldiers expose their commands; barracks exposes training and rally targeting. Enemies, turrets, and deposits show live information.
+- Left-click combines inspection with selection, keeps the tactical camera, and leaves simulation running. Removed the separate close-up/I-key mode and inspection pause ownership.
+- Added mixed-group actions, scrollable HQ research, live costs/queues/status, target-loss handling, and immediate popup hiding for destination/placement targeting. Manual pause and match-end command guards remain intact.
+- Updated tutorial instructions/highlights, generated Survival HUD preview, controls documentation, and development replays.
+- Edit Mode: 10/10 passed. Play Mode: 19/19 passed, including the popup coverage and existing economy/combat/input regressions. Windows development build succeeded.
+- Inspected HQ, research, worker, enemy, deposit, and group captures across 1280x720, 1920x1080, and 2560x1080. Popup replay finished with simulation running and selection preserved; no text-overflow warnings were generated.
+- Existing tuning and metadata hashes were preserved. Unrelated prefab/menu regeneration and test-setting changes were removed.
+- Reports: Builds/PopupValidation. Popup captures: Builds/Windows/SmokeCamera.
+- Final delivery replay cleared all five waves with 1600/1600 HQ health. Updated construction/research tutorial captures were reviewed at the supported resolutions, with no text-overflow warnings. Temporary editor validation code was archived under Builds/PopupValidation/EditorHarness, outside Assets.

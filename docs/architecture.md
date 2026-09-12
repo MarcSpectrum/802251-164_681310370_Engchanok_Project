@@ -19,9 +19,9 @@ The development-only --outpost-smoke replay mines, constructs defenses, trains a
 ## Research and onboarding architecture
 ResearchState is a pure C# model with atomic start/spending, progress and a completed-upgrade set. StrategyMatch validates availability and supplies effective carrying capacity and damage; base settings are never mutated by research. StrategySession carries a one-use practice request across scene loading. StrategyMatch tracks tutorial actions and isolates practice from wave ticking. The local Outpost.TutorialComplete preference controls first-time onboarding only.
 
-The HUD groups commands in three pages, shows research status, and highlights tutorial controls/targets. StrategyCommander supports Move/Gather targeting with the same UI interception and cancellation rules as attack-move.
+The HUD presents object-specific actions, shows research status, and highlights tutorial controls/targets. StrategyCommander supports Move/Gather targeting with the same UI interception and cancellation rules as attack-move.
 
-Development smoke additionally captures tutorial steps, build/placement and research pages at three resolutions and records text-overflow warnings. Add --outpost-research to exercise research purchases (SmokeResearch); combine with --outpost-normal-speed for real-time validation.
+Development smoke additionally captures tutorial steps, HQ actions/placement and research at three resolutions and records text-overflow warnings. Add --outpost-research to exercise research purchases (SmokeResearch); combine with --outpost-normal-speed for real-time validation.
 
 ## Presentation architecture
 
@@ -29,8 +29,12 @@ StrategyEffects is a scene-owned pool on StrategyMatch, limited to 128 reusable 
 
 The generator adds only cosmetic child meshes to entity prefabs and collider-free ground/perimeter decorations outside the navigation hierarchy. The menu diorama copies render children only, with no entities or navigation agents. Shared uGUI helpers provide decorative rules and non-interactive progress bars; editor previews and runtime HUD use the same construction code. Existing material assets and gameplay tuning remain preserved on regeneration.
 
-## Camera architecture
+## Camera and contextual popup architecture
 
-StrategyCameraController owns the camera transform, tactical smoothing/focus, and Picking/Entering/Inspecting/Returning states. StrategyCommander routes inspection before world input. Mesh bounds frame targets with aspect-aware distance; unscaled time drives camera transitions. StrategyMatch.InspectionPaused is independent of manual Paused; both gate Running and the match clock. The HUD replaces its normal panels with camera hints and Exit during inspection.
+StrategyCameraController owns tactical smoothing, pan/zoom, selection focus, and HQ reset. Inspection does not own a camera state or pause flag. StrategyMatch.Running depends on manual pause and match result.
 
-The development-only --outpost-smoke --outpost-camera replay captures tactical, inspection, and restored views at three resolutions under Builds/Windows/SmokeCamera. CameraTests covers simulation freeze, target framing, pause ownership, input isolation, loss of target, restart, and focus/reset.
+StrategyCommander keeps InspectedObject and PopupOpen separate from its friendly Selection list. InspectObject validates entity/deposit targets, clears prior interactions, and never adds enemies or deposits to command selection. Selection APIs update popup context, including groups. BeginRallyPoint uses an explicit producer while choosing reachable terrain and calls the existing SetRallyPoint validation.
+
+StrategyHud builds a reusable object popup with live stats, relevant action buttons, and a scrollable HQ list. Targeting hides it; manual pause/results hide it behind the existing mission overlay. The popup follows the object/group, clamps to usable canvas bounds, avoids tutorial space, and holds position during pointer interaction. EventSystem raycasts intercept popup input. Existing economy, production, research, and world-command validation remain authoritative.
+
+The development-only --outpost-smoke --outpost-camera replay now captures tactical object popups at three resolutions under Builds/Windows/SmokeCamera. CameraTests covers continuing simulation, action availability, read-only objects, groups, target loss, popup click isolation, rally targeting, scrolling, pause/restart, and tactical focus.

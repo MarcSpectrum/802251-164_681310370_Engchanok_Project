@@ -31,8 +31,8 @@ namespace Engchanok.StrategyGame
         public void Fire() { StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f, transform.position+Vector3.up*1.8f, new Color(1,.8f,.35f), .09f, .25f); }
         void Update()
         {
-            ring.enabled = entity.Selected && !match.InspectionPaused;
-            rally.enabled = !match.InspectionPaused && entity.Selected && entity.RallyPoint.HasValue;
+            ring.enabled = entity.Selected;
+            rally.enabled = entity.Selected && entity.RallyPoint.HasValue;
             if (entity.RallyPoint.HasValue) rally.transform.position = entity.RallyPoint.Value;
             if (!match.Running) return;
             flash = Mathf.Max(0, flash - Time.deltaTime);

@@ -2,7 +2,49 @@
 
 Single-player sci-fi RTS survival for keyboard and mouse. One geometric-art map and five waves.
 
-Start with headquarters, three workers and 250 minerals. Workers gather 20 minerals per load, taking 2 seconds to mine, then return automatically. HQ trains workers (50 / 6 seconds); barracks (150) train soldiers (75 / 8 seconds); turrets (100) defend automatically. Construction is instant inside the HQ perimeter and cannot obstruct reserved approach lanes. Production queues hold five jobs and wait for a free exit. Destroyed producers lose their queues without refunds.
+Start with headquarters, three workers and 250 minerals. Workers gather 20 minerals per load, taking 2 seconds to mine, then return automatically. HQ trains workers; three production buildings train the combat roster below; turrets (100) defend automatically; supply relays (75) raise the army cap. Construction is instant inside the HQ perimeter and cannot obstruct reserved approach lanes. Production queues hold five jobs and wait for a free exit. Destroyed producers lose their queues without refunds.
+
+The four deposits hold 1400 minerals each. That is roughly one mission's spending, so deposits run dry and every purchase carries an opportunity cost.
+
+## Roster
+
+Six trainable units across three production buildings. Barracks (150) trains soldiers and defenders; ranger post (140) trains rangers; support bay (175) trains medics and engineers. Each production building provides 4 supply and accepts a rally point, and brutes will besiege all of them.
+
+| Unit | From | Minerals | Supply | Health | Armor | Range | Damage | Speed | Training |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |
+| Worker | Headquarters | 50 | 1 | 70 | Light | - | - | 5 | 6s |
+| Soldier | Barracks | 75 | 2 | 120 | Medium | 7 | 15 | 5 | 8s |
+| Defender | Barracks | 115 | 3 | 300 | Heavy | 2.5 | 12 | 3.8 | 11s |
+| Ranger | Ranger post | 90 | 2 | 80 | Light | 13 | 13 | 5.5 | 9s |
+| Medic | Support bay | 100 | 2 | 90 | Light | 8 | - | 5 | 10s |
+| Engineer | Support bay | 85 | 2 | 90 | Light | 4 | 6 | 5 | 9s |
+
+Medics mend wounded units for free. Engineers repair damaged structures and pay minerals for every point restored, so holding a turret together competes with building the next one; with nothing left to mend an engineer fights, badly. Both accept attack-move so they advance with the army. A production queue holds five jobs of any mix, and each queued job reserves its own supply the moment it is ordered.
+
+## Supply
+
+Every trained unit occupies supply. Headquarters provides 10, each production building 4, each supply relay 8, up to a hard limit of 60. Training is refused at the cap, and queued jobs reserve their supply the moment they are enqueued, so a full queue can never overshoot it. Supply is recounted from the living entity list every frame, so destroyed producers and relays lower the cap immediately.
+
+This is the mission's central tension: every worker trained is a soldier that cannot be, and every relay is minerals not spent on defence.
+
+## Armor and counters
+
+Each entity has an armor class: Light (workers, rangers, medics, engineers, runners), Medium (soldiers, standard hostiles), Heavy (defenders, brutes) or Structure. Armor both counters and defends: damage is scaled by the attacker's row against the target's class. Structures are exempt in both directions, so headquarters and turret balance stay governed by their own numbers.
+
+| Attacker | vs Light | vs Medium | vs Heavy |
+| --- | ---: | ---: | ---: |
+| Soldier | 135% | 115% | 55% |
+| Ranger | 175% | 100% | 40% |
+| Defender | 60% | 110% | 165% |
+| Turret | 50% | 100% | 160% |
+| Engineer | 100% | 100% | 100% |
+| Runner | 130% | 95% | 45% |
+| Standard hostile | 100% | 100% | 80% |
+| Brute | 150% | 110% | 70% |
+
+No single answer covers a mixed wave. Rangers shred runners but are Light themselves, and runners hit Light hardest, so rangers need a defender screen. Defenders and turrets crush brutes, and brutes only manage 70% against Heavy, so a screen genuinely holds. Brutes flatten anything Light left exposed. The preparation preview names each group's armor class, so the next wave is intelligence the player is expected to act on. Research bonuses and armor scaling compose multiplicatively.
+
+Armor defended nothing in the previous milestone, when the player had one unit type and there was nothing for it to express. With a defender in the roster it has to work in both directions, or its Heavy class is decoration.
 
 ## Commands
 - Left-click / drag selects; Shift adds to selection.
@@ -15,9 +57,17 @@ Start with headquarters, three workers and 250 minerals. Workers gather 20 miner
 - Paused and finished matches reject world orders.
 
 ## Waves
-Preparation is 65 seconds; cleared-wave breaks are 40 seconds. Default standard / Runner / Brute counts are 5/0/0, 6/3/0, 8/4/1, 9/6/2 and 10/8/3. Pending spawns count as hostiles and retain their type when blocked.
+Preparation is 55 seconds; cleared-wave breaks are 32 seconds. Default standard / Runner / Brute counts are 6/0/0, 7/4/0, 9/6/2, 11/9/3 and 13/12/5. Pending spawns count as hostiles and retain their type when blocked.
 
-Runners have 60% standard health, 160% speed and 70% damage. Brutes have 250% health, 65% speed and 160% damage. All enemies use melee attacks and advance toward HQ, engaging nearby defenders. Destroy all five waves to win; losing HQ immediately ends the mission.
+Runners have 60% standard health, 160% speed and 70% damage. Brutes have 250% health, 65% speed and 160% damage. All enemies use melee attacks and engage any defender within 8 units of their route.
+
+Beyond that reach they pursue a priority target by type, so defending headquarters alone is not sufficient:
+
+- **Runners** hunt the nearest Light-armored friendly - workers, rangers, medics and engineers - falling back to structures and then headquarters. Mining lines and support units must be covered.
+- **Brutes** siege the nearest turret, barracks or supply relay, falling back to headquarters. Outlying structures need support.
+- **Standard hostiles** march on headquarters.
+
+Headquarters holds 1200 health. Destroy all five waves to win; losing HQ immediately ends the mission. The mission is tuned so that an undefended economy loses.
 
 Tune values and compositions in DefaultStrategy. Settings without compositions retain their original count formula. No multiplayer, additional maps or save/load in this version.
 
@@ -38,17 +88,17 @@ Pause freezes research; ending or restarting a mission stops or resets it. Value
 
 ## Art direction: stylized sci-fi
 
-The presentation uses refined geometric models and industrial details designed to remain readable from the tactical camera. Dark navy metal supports cyan allied soldiers and structures, amber workers, teal mineral deposits, and coral hostiles. Silhouettes distinguish cargo-carrying workers, armored rifle soldiers, low-profile runners, heavy brutes, the command center, hangar, and turret. Color reinforces these shapes rather than providing the only distinction.
+The presentation uses refined geometric models and industrial details designed to remain readable from the tactical camera. Dark navy metal supports cyan allied soldiers and structures, amber workers, teal mineral deposits, and coral hostiles. Silhouettes distinguish cargo-carrying workers, armored rifle soldiers, low-profile runners, heavy brutes, the command center, hangar, turret, the squat relay pylon with its paired storage drums, the ranger post's watch platform, and the support bay's lit aid cross. Rangers carry a long barrel and optic, defenders a tower shield and bulwark plating, medics a glowing aid cross, engineers a welder and part rack. Color reinforces these shapes rather than providing the only distinction.
 
 Warm directional light and cool ambient light reveal form; luminous accents remain restrained. Ground plates, approach markers, and perimeter machinery establish an operational outpost. Scenery has no collision and does not alter navigation, gathering access, or construction footprints.
 
-The interface uses consistent navy panels, cyan rules, clear action states, separate minerals/HQ/wave status, and training/research progress bars. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
+The interface uses consistent navy panels, cyan rules, clear action states, separate minerals/supply/HQ/wave status, and training/research progress bars. The supply readout turns amber at the cap. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
 
 This polish milestone preserves the existing map, balance, five waves, research, tutorial, and controls. Effects follow the match clock, freeze on pause, and are cleared when a match ends or restarts. No camera shake, asset packs, or new dependencies are introduced.
 
 ## Camera and live inspection
 
-Left-click selects and inspects an object in a contextual popup without pausing or moving the tactical camera. HQ offers worker training, instant construction, and research; workers offer Move/Gather; soldiers offer Move/Attack-move; barracks offer soldier training and rally targeting. Turrets, enemies, and deposits show live information only. Groups show commands applicable to their members.
+Left-click selects and inspects an object in a contextual popup without pausing or moving the tactical camera. HQ offers worker training, instant construction (barracks, ranger post, support bay, turret, supply relay), and research; workers offer Move/Gather; troops offer Move/Attack-move; each production building offers its own roster and rally targeting. Turrets, enemies, relays, and deposits show live information only. Every popup names the subject's armor class; soldiers and turrets list their effectiveness against each class, and a hostile lists how well each defence answers it. Groups show commands applicable to their members.
 
 The popup tracks its target, clamps within the screen, and remains stationary under the pointer. Scroll the HQ action list to reach research. Relevant unavailable actions explain their requirements. Empty-ground clicks clear selection; X dismisses the popup while retaining friendly selection. Destroyed targets close their popup (or fall back to surviving group members). Targeted actions hide the popup until completion/cancellation. UI clicks never issue world orders. The top status strip and tutorial remain visible.
 

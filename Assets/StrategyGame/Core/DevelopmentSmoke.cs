@@ -75,22 +75,42 @@ namespace Engchanok.StrategyGame
             var rallied = new HashSet<StrategyEntity>();
             while (match.Running && Time.realtimeSinceStartup - start < (normal ? 800 : 100))
             {
-                var barracks = match.Entities.FirstOrDefault(e => e.kind == EntityKind.Barracks);
-                if (barracks != null && !barracks.RallyPoint.HasValue) barracks.SetRallyPoint(new Vector3(0,0,-2));
-                foreach (var soldier in match.Entities.Where(e => e.kind == EntityKind.Soldier))
-                    if (rallied.Add(soldier)) soldier.AttackMove(new Vector3(-3 + rallied.Count % 3 * 3,0,-2));
+                foreach (var producer in match.Entities.Where(e => e != null && e.Alive && match.settings.IsProducer(e.kind) && e.kind != EntityKind.Headquarters))
+                    if (!producer.RallyPoint.HasValue) producer.SetRallyPoint(new Vector3(0,0,-2));
+                foreach (var troop in match.Entities.Where(e => e != null && e.Alive && e.IsUnit && !e.IsEnemy && e.kind != EntityKind.Worker))
+                    if (rallied.Add(troop)) troop.AttackMove(new Vector3(-3 + rallied.Count % 3 * 3,0,-2));
                 if (research && match.Waves.Wave >= 1 && !match.Research.Active.HasValue)
                     foreach(UpgradeKind upgrade in Enum.GetValues(typeof(UpgradeKind)))
                         if(match.CanResearch(upgrade,out _)) { match.StartResearch(upgrade); break; }
                 bool savingForResearch=research && match.Waves.Wave>=1 && !match.Research.Active.HasValue && Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Any(u=>!match.Research.Completed(u));
-                if (!savingForResearch && match.Wallet.Minerals >= match.settings.turretCost)
+                // Supply comes before more defences, otherwise the replay stalls with minerals it cannot convert into an army.
+                if (!savingForResearch && match.Supply.Free < 4 && match.Wallet.Minerals >= match.settings.relayCost)
                 {
                     bool built = false;
                     for (int z = 5; z >= -24 && !built; z -= 4)
                         for (int x = -18; x <= 18 && !built; x += 4)
-                            if (match.CanPlace(EntityKind.Turret, new Vector3(x,0,z), out _)) built = match.Build(EntityKind.Turret,new Vector3(x,0,z));
+                            if (match.CanPlace(EntityKind.SupplyRelay, new Vector3(x,0,z), out _)) built = match.Build(EntityKind.SupplyRelay,new Vector3(x,0,z));
                 }
-                if (!savingForResearch && barracks != null && barracks.Production.Count < 2 && match.Wallet.Minerals >= match.settings.soldierCost && match.Entities.Count(e => e.kind == EntityKind.Soldier) < 8) match.Train(barracks);
+                // Stand up the whole production line before stacking turrets, so the replay exercises every unit kind.
+                foreach (var structure in new[] { EntityKind.RangerPost, EntityKind.SupportBay, EntityKind.Turret })
+                {
+                    if (savingForResearch || match.Wallet.Minerals < match.settings.Cost(structure)) continue;
+                    if (structure != EntityKind.Turret && match.Entities.Any(e => e != null && e.Alive && e.kind == structure)) continue;
+                    bool built = false;
+                    for (int z = 5; z >= -24 && !built; z -= 4)
+                        for (int x = -18; x <= 18 && !built; x += 4)
+                            if (match.CanPlace(structure, new Vector3(x,0,z), out _)) built = match.Build(structure,new Vector3(x,0,z));
+                    if (built) break;
+                }
+                if (!savingForResearch)
+                    foreach (var unit in new[] { EntityKind.Soldier, EntityKind.Defender, EntityKind.Ranger, EntityKind.Medic, EntityKind.Engineer })
+                    {
+                        var profile = match.settings.Profile(unit);
+                        int want = unit == EntityKind.Medic || unit == EntityKind.Engineer ? 2 : 4;
+                        if (profile == null || match.Wallet.Minerals < profile.cost || match.Entities.Count(e => e != null && e.Alive && e.kind == unit) >= want) continue;
+                        var source = match.Entities.FirstOrDefault(e => e != null && e.Alive && e.kind == profile.producer && e.Production.Count < 2);
+                        if (source != null && match.Train(source, unit)) break;
+                    }
                 if (!captured && match.Waves.Wave >= 2)
                 {
                     captured = true;

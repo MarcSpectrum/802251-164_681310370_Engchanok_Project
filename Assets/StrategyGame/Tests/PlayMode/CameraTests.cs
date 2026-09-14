@@ -50,20 +50,20 @@ namespace Engchanok.StrategyGame.Tests
         [UnityTest] public IEnumerator EveryObjectShowsOnlyRelevantActionsAndLiveDetails()
         {
             commander.InspectObject(match.Headquarters.transform); yield return null;
-            CollectionAssert.AreEquivalent(new[]{"Train","Build barracks","Build turret","Improved Mining","Soldier Weapons","Turret Weapons"},Actions);
+            CollectionAssert.AreEquivalent(new[]{"Train Worker","Build barracks","Build ranger post","Build support bay","Build turret","Build supply relay","Improved Mining","Soldier Weapons","Turret Weapons"},Actions);
             match.Wallet.TrySpend(match.Wallet.Minerals); yield return null;
-            Assert.IsFalse(Action("Train").interactable);
-            StringAssert.Contains("Need",Action("Train").GetComponentInChildren<Text>().text);
-            match.Wallet.Deposit(1000); Action("Train").onClick.Invoke(); yield return null;
+            Assert.IsFalse(Action("Train Worker").interactable);
+            StringAssert.Contains("Need",Action("Train Worker").GetComponentInChildren<Text>().text);
+            match.Wallet.Deposit(1000); Action("Train Worker").onClick.Invoke(); yield return null;
             Assert.AreEqual(1,match.Headquarters.Production.Count);
             Assert.IsTrue(Popup.Find("Training progress").gameObject.activeSelf);
             Action("Improved Mining").onClick.Invoke(); yield return null;
             StringAssert.Contains("Researching",Action("Improved Mining").GetComponentInChildren<Text>().text);
-            foreach(var kind in new[]{EntityKind.Worker,EntityKind.Soldier,EntityKind.Barracks,EntityKind.Turret,EntityKind.Enemy})
+            foreach(var kind in new[]{EntityKind.Worker,EntityKind.Soldier,EntityKind.Barracks,EntityKind.RangerPost,EntityKind.SupportBay,EntityKind.Turret,EntityKind.Enemy})
             {
                 var entity=kind==EntityKind.Worker?match.Entities.First(e=>e.kind==kind):match.Spawn(kind,new Vector3(10,0,-10));
                 commander.InspectObject(entity.transform); yield return null;
-                string[] expected=kind==EntityKind.Worker?new[]{"Move","Gather"}:kind==EntityKind.Soldier?new[]{"Move","Attack-move [F]"}:kind==EntityKind.Barracks?new[]{"Train","Set rally point"}:new string[0];
+                string[] expected=kind==EntityKind.Worker?new[]{"Move","Gather"}:kind==EntityKind.Soldier?new[]{"Move","Attack-move [F]"}:kind==EntityKind.Barracks?new[]{"Train Soldier","Train Defender","Set rally point"}:kind==EntityKind.RangerPost?new[]{"Train Ranger","Set rally point"}:kind==EntityKind.SupportBay?new[]{"Train Medic","Train Engineer","Set rally point"}:new string[0];
                 CollectionAssert.AreEquivalent(expected,Actions,kind.ToString());
                 if(entity.IsEnemy) Assert.IsEmpty(commander.Selection);
                 entity.Damage(10); yield return null;

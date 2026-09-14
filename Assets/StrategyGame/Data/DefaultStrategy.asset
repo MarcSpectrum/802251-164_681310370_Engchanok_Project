@@ -13,15 +13,21 @@ MonoBehaviour:
   m_Name: DefaultStrategy
   m_EditorClassIdentifier: StrategyGame.Runtime::Engchanok.StrategyGame.StrategySettings
   startingMinerals: 250
-  depositMinerals: 6000
+  depositMinerals: 1400
   workerCapacity: 20
   miningSeconds: 2
-  workerCost: 50
-  soldierCost: 75
   barracksCost: 150
   turretCost: 100
-  workerTraining: 6
-  soldierTraining: 8
+  rangerPostCost: 140
+  supportBayCost: 175
+  supplyLimit: 60
+  headquartersSupply: 10
+  producerSupply: 4
+  relaySupply: 8
+  relayCost: 75
+  medicHealPerSecond: 9
+  engineerRepairPerSecond: 22
+  repairMineralsPerHundredHealth: 20
   miningResearchCost: 125
   soldierResearchCost: 150
   turretResearchCost: 150
@@ -36,22 +42,16 @@ MonoBehaviour:
   waveCount: 5
   firstWaveEnemies: 5
   extraEnemiesPerWave: 4
-  preparationSeconds: 65
-  betweenWaveSeconds: 40
-  headquartersHealth: 1600
-  workerHealth: 70
-  soldierHealth: 120
+  preparationSeconds: 55
+  betweenWaveSeconds: 32
+  headquartersHealth: 1200
   buildingHealth: 350
   enemyHealth: 90
-  soldierDamage: 15
   turretDamage: 22
-  enemyDamage: 10
-  soldierRange: 7
+  enemyDamage: 12
   turretRange: 12
   enemyRange: 2
   attackInterval: 1
-  workerSpeed: 5
-  soldierSpeed: 5
   enemySpeed: 3.5
   runnerHealth: 0.6
   runnerSpeed: 1.6
@@ -59,19 +59,125 @@ MonoBehaviour:
   bruteHealth: 2.5
   bruteSpeed: 0.65
   bruteDamage: 1.6
+  units:
+  - kind: 1
+    producer: 0
+    cost: 50
+    supply: 1
+    health: 70
+    damage: 0
+    range: 0
+    speed: 5
+    trainSeconds: 6
+  - kind: 2
+    producer: 3
+    cost: 75
+    supply: 2
+    health: 120
+    damage: 15
+    range: 7
+    speed: 5
+    trainSeconds: 8
+  - kind: 10
+    producer: 3
+    cost: 115
+    supply: 3
+    health: 300
+    damage: 12
+    range: 2.5
+    speed: 3.8
+    trainSeconds: 11
+  - kind: 9
+    producer: 13
+    cost: 90
+    supply: 2
+    health: 80
+    damage: 13
+    range: 13
+    speed: 5.5
+    trainSeconds: 9
+  - kind: 11
+    producer: 14
+    cost: 100
+    supply: 2
+    health: 90
+    damage: 0
+    range: 8
+    speed: 5
+    trainSeconds: 10
+  - kind: 12
+    producer: 14
+    cost: 85
+    supply: 2
+    health: 90
+    damage: 6
+    range: 4
+    speed: 5
+    trainSeconds: 9
+  armorProfiles:
+  - kind: 1
+    armor: 0
+    vsLight: 1
+    vsMedium: 1
+    vsHeavy: 1
+  - kind: 2
+    armor: 1
+    vsLight: 1.35
+    vsMedium: 1.15
+    vsHeavy: 0.55
+  - kind: 9
+    armor: 0
+    vsLight: 1.75
+    vsMedium: 1
+    vsHeavy: 0.4
+  - kind: 10
+    armor: 2
+    vsLight: 0.6
+    vsMedium: 1.1
+    vsHeavy: 1.65
+  - kind: 11
+    armor: 0
+    vsLight: 1
+    vsMedium: 1
+    vsHeavy: 1
+  - kind: 12
+    armor: 0
+    vsLight: 1
+    vsMedium: 1
+    vsHeavy: 1
+  - kind: 4
+    armor: 3
+    vsLight: 0.5
+    vsMedium: 1
+    vsHeavy: 1.6
+  - kind: 5
+    armor: 1
+    vsLight: 1
+    vsMedium: 1
+    vsHeavy: 0.8
+  - kind: 6
+    armor: 0
+    vsLight: 1.3
+    vsMedium: 0.95
+    vsHeavy: 0.45
+  - kind: 7
+    armor: 2
+    vsLight: 1.5
+    vsMedium: 1.1
+    vsHeavy: 0.7
   waveCompositions:
-  - standard: 5
+  - standard: 6
     runners: 0
     brutes: 0
-  - standard: 6
-    runners: 3
-    brutes: 0
-  - standard: 8
+  - standard: 7
     runners: 4
-    brutes: 1
+    brutes: 0
   - standard: 9
     runners: 6
     brutes: 2
-  - standard: 10
-    runners: 8
+  - standard: 11
+    runners: 9
     brutes: 3
+  - standard: 13
+    runners: 12
+    brutes: 5

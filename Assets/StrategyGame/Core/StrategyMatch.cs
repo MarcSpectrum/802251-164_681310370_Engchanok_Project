@@ -16,7 +16,12 @@ namespace Engchanok.StrategyGame
         public int DeliveredMinerals { get; private set; }
         public bool TutorialAttackIssued { get; set; }
         public int WorkerCapacity => Mathf.RoundToInt(settings.workerCapacity * (Research.Completed(UpgradeKind.Mining) ? 1 + settings.miningResearchBonus : 1));
-        public float CombatDamage(EntityKind kind) => kind == EntityKind.Soldier ? settings.soldierDamage * (Research.Completed(UpgradeKind.SoldierWeapons) ? 1 + settings.soldierResearchBonus : 1) : kind == EntityKind.Turret ? settings.turretDamage * (Research.Completed(UpgradeKind.TurretWeapons) ? 1 + settings.turretResearchBonus : 1) : settings.EnemyDamage(kind);
+        // Soldier Weapons research covers every barracks-line trooper; Turret Weapons covers emplacements.
+        public float CombatDamage(EntityKind kind) => kind == EntityKind.Turret ? settings.turretDamage * (Research.Completed(UpgradeKind.TurretWeapons) ? 1 + settings.turretResearchBonus : 1)
+            : settings.Damage(kind) * (!IsHostileKind(kind) && Research.Completed(UpgradeKind.SoldierWeapons) ? 1 + settings.soldierResearchBonus : 1);
+        public static bool IsHostileKind(EntityKind kind) => kind == EntityKind.Enemy || kind == EntityKind.Runner || kind == EntityKind.Brute;
+        // Research bonus and the armor counter compose multiplicatively.
+        public float CombatDamage(EntityKind attacker, EntityKind target) => CombatDamage(attacker) * settings.DamageScale(attacker, target);
         public void Deliver(int amount) { Wallet.Deposit(amount); DeliveredMinerals += amount; }
         public bool CanResearch(UpgradeKind kind, out string reason)
         {
@@ -48,6 +53,7 @@ namespace Engchanok.StrategyGame
             if (done) TutorialStep++;
         }
         public Wallet Wallet { get; private set; }
+        public SupplyModel Supply { get; private set; }
         public WaveState Waves { get; private set; }
         public StrategyEntity Headquarters { get; private set; }
         public bool Paused { get; private set; }
@@ -64,13 +70,30 @@ namespace Engchanok.StrategyGame
             Practice = StrategySession.PracticeRequested; StrategySession.PracticeRequested = false;
             Research = new ResearchState();
             Wallet = new Wallet(Practice ? 1000 : settings.startingMinerals);
+            Supply = new SupplyModel(settings.supplyLimit);
             Waves = new WaveState(settings.waveCount, settings.preparationSeconds, settings.betweenWaveSeconds);
             foreach (var deposit in FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None)) deposit.Initialize(settings.depositMinerals);
             Headquarters = Spawn(EntityKind.Headquarters, HomePosition);
             for (int i = 0; i < 3; i++) TrySpawnUnit(EntityKind.Worker, HomePosition + new Vector3(-3 + i * 3, 0, -3), out _);
         }
+        // Supply is derived from the live entity list every frame, so deaths and cancelled producers correct themselves with no bookkeeping.
+        public void RecountSupply()
+        {
+            if (Supply == null || settings == null) return;
+            int used = 0, cap = 0;
+            foreach (var entity in Entities)
+            {
+                if (entity == null || !entity.Alive || entity.IsEnemy) continue;
+                used += settings.Supply(entity.kind);
+                cap += settings.SupplyProvided(entity.kind);
+                // Queued jobs reserve their own supply up front, so a mixed queue reserves what it will actually cost.
+                foreach (var queued in entity.Production.Queued) used += settings.Supply(queued);
+            }
+            Supply.Recount(used, cap);
+        }
         void Update()
         {
+            RecountSupply();
             if (!Running) return;
             if (Headquarters == null || !Headquarters.Alive) { Waves.Tick(0, HostileCount, false); Time.timeScale = 0; return; }
             if (Research.Tick(Time.deltaTime)) { Notify("Research complete. Your forces are upgraded."); StrategyFeedback.Sound(this, 1050, .28f); }
@@ -96,6 +119,9 @@ namespace Engchanok.StrategyGame
         void OnDestroy() { Time.timeScale = 1; }
         public StrategyEntity Spawn(EntityKind kind, Vector3 position)
         {
+            // A scene saved before a new kind existed still carries the old, shorter prefab array.
+            if (prefabs == null || (int)kind >= prefabs.Length || prefabs[(int)kind] == null)
+            { Notify("No " + kind + " prefab. Run Strategy Game > Rebuild Prototype."); return null; }
             var entity = Instantiate(prefabs[(int)kind], position, Quaternion.identity);
             entity.name = kind.ToString(); entity.Initialize(this); return entity;
         }
@@ -109,23 +135,38 @@ namespace Engchanok.StrategyGame
                 if (!NavMesh.SamplePosition(point, out var hit, 1.5f, NavMesh.AllAreas)) continue;
                 bool occupied = Entities.Exists(e => e != null && e.Alive && Vector3.Distance(e.transform.position, hit.position) < settings.Radius(e.kind) + .65f);
                 if (occupied) continue;
-                entity = Spawn(kind, hit.position); return true;
+                entity = Spawn(kind, hit.position); return entity != null;
             }
             return false;
         }
+        // The producer's first roster entry, used by the one-argument overload and by rally/progress defaults.
+        public EntityKind? DefaultTrained(EntityKind producer)
+        {
+            if (settings.units != null) foreach (var profile in settings.units) if (profile != null && profile.producer == producer) return profile.kind;
+            return null;
+        }
         public bool Train(StrategyEntity producer)
         {
+            if (producer == null) return false;
+            var kind = DefaultTrained(producer.kind);
+            return kind.HasValue && Train(producer, kind.Value);
+        }
+        public bool Train(StrategyEntity producer, EntityKind kind)
+        {
             if (!Running || producer == null || !producer.Alive || producer.IsEnemy) return false;
-            if (producer.kind != EntityKind.Headquarters && producer.kind != EntityKind.Barracks) return false;
-            var kind = producer.kind == EntityKind.Headquarters ? EntityKind.Worker : EntityKind.Soldier;
-            bool ok = producer.Production.Enqueue(Wallet, settings.Cost(kind), kind == EntityKind.Worker ? settings.workerTraining : settings.soldierTraining);
+            var profile = settings.Profile(kind);
+            if (profile == null || profile.producer != producer.kind) return false;
+            RecountSupply();
+            if (!Supply.Fits(profile.supply)) { Notify("Supply is full (" + Supply.Used + "/" + Supply.Cap + "). Build a supply relay."); return false; }
+            bool ok = producer.Production.Enqueue(kind, Wallet, profile.cost, profile.trainSeconds);
             if (!ok) Notify("Not enough minerals, or production queue is full (5).");
+            else RecountSupply();
             return ok;
         }
         public bool CanPlace(EntityKind kind, Vector3 point, out string reason)
         {
             reason = "";
-            if (kind != EntityKind.Barracks && kind != EntityKind.Turret) { reason = "Select a buildable structure."; return false; }
+            if (!IsBuildable(kind)) { reason = "Select a buildable structure."; return false; }
             float radius = settings.Radius(kind);
             if (Headquarters == null || !Headquarters.Alive) { reason = "Headquarters is unavailable."; return false; }
             if (Vector3.Distance(point, HomePosition) + radius > settings.buildRadius) { reason = "Build inside the headquarters perimeter."; return false; }
@@ -147,7 +188,45 @@ namespace Engchanok.StrategyGame
             if (!Running) return false;
             if (!CanPlace(kind, point, out var reason)) { Notify(reason); return false; }
             if (!Wallet.TrySpend(settings.Cost(kind))) return false;
-            Spawn(kind, point); StrategyFeedback.Construct(this, point); Notify(kind + " ready."); return true;
+            if (Spawn(kind, point) == null) { Wallet.Deposit(settings.Cost(kind)); return false; }
+            StrategyFeedback.Construct(this, point); Notify(StrategySettings.Label(kind) + " ready."); RecountSupply(); return true;
+        }
+        public static readonly EntityKind[] Buildable = { EntityKind.Barracks, EntityKind.RangerPost, EntityKind.SupportBay, EntityKind.Turret, EntityKind.SupplyRelay };
+        public static bool IsBuildable(EntityKind kind) => System.Array.IndexOf(Buildable, kind) >= 0;
+        public static bool IsDefence(EntityKind kind) => IsBuildable(kind);
+        // Runners harass anything soft, brutes siege the outer structures, standard hostiles push the headquarters.
+        public StrategyEntity PriorityTarget(StrategyEntity hunter)
+        {
+            if (hunter == null || !hunter.IsEnemy) return null;
+            if (hunter.kind == EntityKind.Runner) return NearestFriendly(hunter, IsSoft) ?? NearestFriendly(hunter, IsDefence) ?? Headquarters;
+            if (hunter.kind == EntityKind.Brute) return NearestFriendly(hunter, IsDefence) ?? Headquarters;
+            return Headquarters;
+        }
+        // Light armor is exactly the set runners are built to punish: workers, rangers, medics and engineers.
+        bool IsSoft(EntityKind kind) => settings.Armor(kind) == ArmorClass.Light;
+        StrategyEntity NearestFriendly(StrategyEntity source, System.Func<EntityKind, bool> wanted)
+        {
+            StrategyEntity best = null; float distance = float.MaxValue;
+            foreach (var entity in Entities)
+            {
+                if (entity == null || !entity.Alive || entity.IsEnemy || !wanted(entity.kind)) continue;
+                float d = Vector3.Distance(source.transform.position, entity.transform.position);
+                if (d < distance) { best = entity; distance = d; }
+            }
+            return best;
+        }
+        // Medics mend units, engineers mend structures; the two never compete for the same target.
+        public StrategyEntity NearestWounded(StrategyEntity source, float range, bool buildings)
+        {
+            StrategyEntity best = null; float distance = range;
+            foreach (var entity in Entities)
+            {
+                if (entity == null || !entity.Alive || entity.IsEnemy || entity == source) continue;
+                if (entity.IsUnit == buildings || entity.Health.Current >= entity.Health.Maximum) continue;
+                float d = Vector3.Distance(source.transform.position, entity.transform.position) - settings.Radius(entity.kind);
+                if (d < distance) { best = entity; distance = d; }
+            }
+            return best;
         }
         public StrategyEntity NearestOpponent(StrategyEntity source, float range)
         {

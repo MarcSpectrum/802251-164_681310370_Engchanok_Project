@@ -51,11 +51,16 @@ namespace Engchanok.StrategyGame.Editor
                 if (kind == EntityKind.Turret) obj.transform.Find("Body").localScale = new Vector3(radius*1.55f,.8f,radius*1.55f);
                 if (kind == EntityKind.Runner) obj.transform.Find("Body").localScale = new Vector3(.65f,.55f,1.3f);
                 if (kind == EntityKind.Brute) obj.transform.Find("Body").localScale = new Vector3(1.4f,1.7f,1.2f);
+                if (kind == EntityKind.SupplyRelay) obj.transform.Find("Body").localScale = new Vector3(radius*1.15f,1.8f,radius*1.15f);
                 if (unit)
                 {
                     Visual(obj.transform, "Visor", PrimitiveType.Cube, new Vector3(0,1.45f,.43f), new Vector3(.65f,.15f,.18f), beam);
                     if (kind == EntityKind.Worker) Visual(obj.transform,"Cargo pack",PrimitiveType.Cube,new Vector3(0,.9f,-.45f),new Vector3(.7f,.8f,.4f),metal);
                     if (kind == EntityKind.Soldier) Visual(obj.transform,"Rifle",PrimitiveType.Cube,new Vector3(.5f,1,.35f),new Vector3(.2f,.2f,1),metal);
+                    if (kind == EntityKind.Ranger) Visual(obj.transform,"Long barrel",PrimitiveType.Cube,new Vector3(.45f,1.05f,.7f),new Vector3(.14f,.14f,1.9f),metal);
+                    if (kind == EntityKind.Defender) Visual(obj.transform,"Tower shield",PrimitiveType.Cube,new Vector3(-.55f,1,.5f),new Vector3(.22f,1.5f,1),metal);
+                    if (kind == EntityKind.Medic) Visual(obj.transform,"Aid pack",PrimitiveType.Cube,new Vector3(0,1.05f,-.45f),new Vector3(.6f,.7f,.35f),beam);
+                    if (kind == EntityKind.Engineer) Visual(obj.transform,"Tool rig",PrimitiveType.Cube,new Vector3(.5f,.95f,.3f),new Vector3(.26f,.26f,.8f),metal);
                 }
                 else
                 {
@@ -138,9 +143,11 @@ namespace Engchanok.StrategyGame.Editor
         {
             Material team=kind==EntityKind.Worker?amber:kind==EntityKind.Enemy || kind==EntityKind.Runner || kind==EntityKind.Brute?red:cyan;
             var detail=new GameObject("Visual details").transform; detail.SetParent(parent,false);
-            if(kind==EntityKind.Worker || kind==EntityKind.Soldier || kind==EntityKind.Enemy || kind==EntityKind.Brute)
+            // Every humanoid shares this silhouette; anything omitted here falls to the building branch and renders as architecture.
+            if(kind==EntityKind.Worker || kind==EntityKind.Soldier || kind==EntityKind.Enemy || kind==EntityKind.Brute
+                || kind==EntityKind.Ranger || kind==EntityKind.Defender || kind==EntityKind.Medic || kind==EntityKind.Engineer)
             {
-                float width=kind==EntityKind.Brute?1.45f:1;
+                float width=kind==EntityKind.Brute?1.45f:kind==EntityKind.Defender?1.3f:1;
                 Visual(detail,"Chest armor",PrimitiveType.Cube,new Vector3(0,1.15f,.25f),new Vector3(.8f*width,.65f,.35f),metal);
                 for(int side=-1;side<=1;side+=2)
                 {
@@ -154,6 +161,18 @@ namespace Engchanok.StrategyGame.Editor
                     Visual(detail,"Tool tip",PrimitiveType.Sphere,new Vector3(.65f,.8f,.85f),Vector3.one*.25f,glow);
                 }
                 if(kind==EntityKind.Brute) Visual(detail,"Siege crest",PrimitiveType.Cube,new Vector3(0,1.95f,0),new Vector3(.5f,.4f,1),red);
+                if(kind==EntityKind.Defender) Visual(detail,"Bulwark plating",PrimitiveType.Cube,new Vector3(0,1.6f,.1f),new Vector3(1.15f,.5f,.6f),cyan);
+                if(kind==EntityKind.Ranger) Visual(detail,"Optic",PrimitiveType.Sphere,new Vector3(.45f,1.45f,.25f),Vector3.one*.22f,glow);
+                if(kind==EntityKind.Medic)
+                {
+                    Visual(detail,"Aid cross",PrimitiveType.Cube,new Vector3(0,1.3f,-.62f),new Vector3(.5f,.14f,.1f),glow);
+                    Visual(detail,"Aid post",PrimitiveType.Cube,new Vector3(0,1.3f,-.62f),new Vector3(.14f,.5f,.1f),glow);
+                }
+                if(kind==EntityKind.Engineer)
+                {
+                    Visual(detail,"Welder",PrimitiveType.Sphere,new Vector3(.5f,.95f,.75f),Vector3.one*.22f,glow);
+                    Visual(detail,"Part rack",PrimitiveType.Cube,new Vector3(0,1,-.55f),new Vector3(.6f,.45f,.3f),metal);
+                }
             }
             else if(kind==EntityKind.Runner)
             {
@@ -181,6 +200,23 @@ namespace Engchanok.StrategyGame.Editor
                 {
                     Visual(detail,"Turret housing",PrimitiveType.Cube,new Vector3(0,2.35f,0),new Vector3(1.5f,.6f,1.2f),metal);
                     Visual(detail,"Muzzle",PrimitiveType.Cube,new Vector3(0,2.5f,2),new Vector3(.48f,.45f,.22f),glow);
+                }
+                if(kind==EntityKind.RangerPost)
+                {
+                    Visual(detail,"Watch platform",PrimitiveType.Cube,new Vector3(0,2.7f,0),new Vector3(radius*1.2f,.25f,radius*1.2f),metal);
+                    for(int side=-1;side<=1;side+=2) Visual(detail,"Sight rail",PrimitiveType.Cube,new Vector3(side*radius*.55f,3.05f,0),new Vector3(.12f,.5f,radius),glow);
+                }
+                if(kind==EntityKind.SupportBay)
+                {
+                    Visual(detail,"Bay canopy",PrimitiveType.Cube,new Vector3(0,2.6f,0),new Vector3(radius*1.7f,.22f,radius*1.4f),metal);
+                    Visual(detail,"Aid cross",PrimitiveType.Cube,new Vector3(0,1.6f,radius*.8f),new Vector3(1.1f,.24f,.1f),glow);
+                    Visual(detail,"Aid post",PrimitiveType.Cube,new Vector3(0,1.6f,radius*.8f),new Vector3(.24f,1.1f,.1f),glow);
+                }
+                if(kind==EntityKind.SupplyRelay)
+                {
+                    Visual(detail,"Relay pylon",PrimitiveType.Cylinder,new Vector3(0,2.9f,0),new Vector3(.3f,1.1f,.3f),metal);
+                    for(int side=-1;side<=1;side+=2) Visual(detail,"Storage drum",PrimitiveType.Cylinder,new Vector3(side*.85f,1.5f,0),new Vector3(.55f,.9f,.55f),cyan);
+                    Visual(detail,"Relay ring",PrimitiveType.Cylinder,new Vector3(0,4,0),new Vector3(1.3f,.1f,1.3f),glow);
                 }
             }
         }
@@ -212,8 +248,9 @@ namespace Engchanok.StrategyGame.Editor
         {
             var root=new GameObject("Menu outpost diorama").transform;
             Visual(root,"Display deck",PrimitiveType.Cylinder,new Vector3(9,-.4f,0),new Vector3(19,.4f,16),ground);
-            var kinds=new[]{EntityKind.Headquarters,EntityKind.Barracks,EntityKind.Turret,EntityKind.Worker,EntityKind.Soldier};
-            var positions=new[]{new Vector3(9,0,3),new Vector3(14,0,-1),new Vector3(6,0,-4),new Vector3(10,0,-5),new Vector3(13,0,-5)};
+            var kinds=new[]{EntityKind.Headquarters,EntityKind.Barracks,EntityKind.RangerPost,EntityKind.SupportBay,EntityKind.Turret,EntityKind.SupplyRelay,EntityKind.Worker,EntityKind.Soldier,EntityKind.Defender,EntityKind.Ranger,EntityKind.Medic,EntityKind.Engineer};
+            var positions=new[]{new Vector3(9,0,4),new Vector3(14,0,0),new Vector3(15,0,5),new Vector3(4,0,4),new Vector3(5,0,-3),new Vector3(2,0,0),
+                new Vector3(8,0,-5),new Vector3(10,0,-5),new Vector3(12,0,-5),new Vector3(14,0,-5),new Vector3(16,0,-4),new Vector3(6,0,-5)};
             for(int i=0;i<kinds.Length;i++)
             {
                 var prefab=AssetDatabase.LoadAssetAtPath<StrategyEntity>(Root+"/Prefabs/"+kinds[i]+".prefab");

@@ -19,8 +19,11 @@ namespace Engchanok.StrategyGame
         Text headquartersStatus;
         Image headquartersProgress, trainingProgress;
         readonly Image[] researchProgress = new Image[3];
-        Text resources, wave, notice, selection, queue, resultTitle, resultBody, muteLabel;
-        Button train, attack, barracks, turret, resume, move, gather, tutorialNext;
+        Text resources, supply, wave, notice, selection, queue, resultTitle, resultBody, muteLabel;
+        Button attack, barracks, turret, relay, rangerPost, supportBay, resume, move, gather, tutorialNext;
+        // One train button per roster entry, keyed by the unit it trains.
+        static readonly EntityKind[] TrainableKinds = { EntityKind.Worker, EntityKind.Soldier, EntityKind.Defender, EntityKind.Ranger, EntityKind.Medic, EntityKind.Engineer };
+        readonly Button[] trainButtons = new Button[TrainableKinds.Length];
         Text objective, tutorialText;
         Image tutorialPanel;
         readonly Button[] researchButtons = new Button[3];
@@ -34,12 +37,13 @@ namespace Engchanok.StrategyGame
             if (canvas != null) return;
             canvas=StrategyUI.Canvas(transform);
             var top=StrategyUI.Panel(canvas.transform,"Status",new Vector2(0,.895f),Vector2.one,StrategyUI.Ink);
-            StrategyUI.Label(top.transform,"OUTPOST  /  SURVIVAL",new Vector2(0,0),new Vector2(.2f,1),26,StrategyUI.Accent);
-            resources=StrategyUI.Label(top.transform,"",new Vector2(.2f,0),new Vector2(.35f,1),24,new Color(1,.75f,.35f));
-            headquartersStatus=StrategyUI.Label(top.transform,"",new Vector2(.35f,.15f),new Vector2(.55f,1),22);
-            headquartersProgress=StrategyUI.Progress(top.transform,"HQ integrity",new Vector2(.36f,.12f),new Vector2(.54f,.19f),StrategyUI.Accent);
+            StrategyUI.Label(top.transform,"OUTPOST\nSURVIVAL",new Vector2(0,0),new Vector2(.13f,1),22,StrategyUI.Accent);
+            resources=StrategyUI.Label(top.transform,"",new Vector2(.13f,0),new Vector2(.26f,1),24,new Color(1,.75f,.35f));
+            supply=StrategyUI.Label(top.transform,"",new Vector2(.26f,0),new Vector2(.39f,1),24,StrategyUI.Accent);
+            headquartersStatus=StrategyUI.Label(top.transform,"",new Vector2(.39f,.15f),new Vector2(.58f,1),22);
+            headquartersProgress=StrategyUI.Progress(top.transform,"HQ integrity",new Vector2(.4f,.12f),new Vector2(.57f,.19f),StrategyUI.Accent);
             StrategyUI.Rule(top.transform,Vector2.zero,new Vector2(1,.018f));
-            wave=StrategyUI.Label(top.transform,"",new Vector2(.55f,0),new Vector2(.81f,1));
+            wave=StrategyUI.Label(top.transform,"",new Vector2(.58f,0),new Vector2(.81f,1));
             StrategyUI.Button(top.transform,"?",new Vector2(.81f,.15f),new Vector2(.86f,.85f),()=>help.gameObject.SetActive(!help.gameObject.activeSelf));
             var mute=StrategyUI.Button(top.transform,"Sound",new Vector2(.86f,.15f),new Vector2(.93f,.85f),()=> { StrategyFeedback.Muted=!StrategyFeedback.Muted; AudioListener.volume=StrategyFeedback.Muted?0:1; });
             muteLabel=mute.GetComponentInChildren<Text>();
@@ -68,13 +72,20 @@ namespace Engchanok.StrategyGame
             var scrollbar=scrollTrack.gameObject.AddComponent<Scrollbar>(); scrollbar.handleRect=thumb.rectTransform;
             scrollbar.targetGraphic=thumb; scrollbar.direction=Scrollbar.Direction.BottomToTop;
             actionScroll.verticalScrollbar=scrollbar; actionScroll.verticalScrollbarVisibility=ScrollRect.ScrollbarVisibility.AutoHide;
-            train=PopupAction("Train",()=> { if(commander.Selection.Count==1) match.Train(commander.Selection[0]); });
+            for(int i=0;i<TrainableKinds.Length;i++)
+            {
+                var unit=TrainableKinds[i];
+                trainButtons[i]=PopupAction("Train "+StrategySettings.Label(unit),()=> { if(commander.Selection.Count==1) match.Train(commander.Selection[0],unit); });
+            }
             move=PopupAction("Move",()=>commander.BeginOrder(UnitOrder.Move));
             gather=PopupAction("Gather",()=>commander.BeginOrder(UnitOrder.Gather));
             attack=PopupAction("Attack-move [F]",()=>commander.BeginAttackMove());
             rally=PopupAction("Set rally point",()=>commander.BeginRallyPoint());
             barracks=PopupAction("Build barracks",()=>commander.BeginPlacement(EntityKind.Barracks));
             turret=PopupAction("Build turret",()=>commander.BeginPlacement(EntityKind.Turret));
+            rangerPost=PopupAction("Build ranger post",()=>commander.BeginPlacement(EntityKind.RangerPost));
+            supportBay=PopupAction("Build support bay",()=>commander.BeginPlacement(EntityKind.SupportBay));
+            relay=PopupAction("Build supply relay",()=>commander.BeginPlacement(EntityKind.SupplyRelay));
             for(int i=0;i<3;i++)
             {
                 var upgrade=(UpgradeKind)i;
@@ -88,8 +99,8 @@ namespace Engchanok.StrategyGame
             tutorialText=StrategyUI.Label(tutorialPanel.transform,"",new Vector2(0,.27f),Vector2.one,23);
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false);
-            help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.25f,.30f),new Vector2(.75f,.82f),StrategyUI.Ink);
-            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nClick objects: inspect / actions    C: focus    Home: HQ\nEsc / right-click: cancel targeting\nEsc: pause / resume",new Vector2(0,.15f),Vector2.one,20);
+            help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Ink);
+            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nClick objects: inspect / actions    C: focus    Home: HQ\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes siege your\nstructures, standard hostiles march on headquarters.",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
             drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
             overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
@@ -105,19 +116,50 @@ namespace Engchanok.StrategyGame
             rect.anchoredPosition=new Vector2(0,-top); rect.sizeDelta=new Vector2(width,height);
         }
         Button PopupAction(string name, UnityEngine.Events.UnityAction action) => StrategyUI.Button(actionContent,name,Vector2.zero,Vector2.one,action);
+        // Percentages keep the counter table readable without culture-sensitive decimal formatting.
+        string Percent(EntityKind attacker, EntityKind target) => Mathf.RoundToInt(match.settings.DamageScale(attacker,target)*100)+"%";
+        string Counters(EntityKind attacker) => "vs Light "+Percent(attacker,EntityKind.Runner)+"  Medium "+Percent(attacker,EntityKind.Enemy)+"  Heavy "+Percent(attacker,EntityKind.Brute);
+        Button TrainButton(EntityKind kind) => trainButtons[System.Array.IndexOf(TrainableKinds,kind)];
+        void BuildLabel(Button button, EntityKind kind, string benefit, bool ready)
+        {
+            int cost=match.settings.Cost(kind);
+            button.interactable=ready && match.Wallet.Minerals>=cost;
+            ActionLabel(button,"Build "+StrategySettings.Label(kind).ToLower()+" / "+cost+" minerals",match.Wallet.Minerals<cost?"Need "+(cost-match.Wallet.Minerals)+" minerals":benefit+" / Instant");
+        }
+        // The detail line under the popup title, chosen by what the selected object actually is.
+        string Details(StrategyEntity selected)
+        {
+            if(selected==null) return "Click an object for details and actions";
+            if(selected.Production.Count>0) return "Training "+StrategySettings.Label(selected.Production.Next ?? selected.kind)+"  /  "+selected.Production.Count+" queued - "+Mathf.CeilToInt(selected.Production.Remaining)+"s";
+            if(selected.IsEnemy) return "Incoming hostile\nSoldiers "+Percent(EntityKind.Soldier,selected.kind)+"  Rangers "+Percent(EntityKind.Ranger,selected.kind)+"  Defenders "+Percent(EntityKind.Defender,selected.kind)+"  Turrets "+Percent(EntityKind.Turret,selected.kind);
+            switch(selected.kind)
+            {
+                case EntityKind.Headquarters: return "Train workers / Build / Research\n+"+match.settings.headquartersSupply+" supply";
+                case EntityKind.SupplyRelay: return "Supports your army\n+"+match.settings.relaySupply+" supply";
+                case EntityKind.Worker: return (selected.MiningTarget!=null?"Gathering and delivering":"Choose Gather to start mining")+"\nCarrying "+selected.Cargo+" / "+match.WorkerCapacity;
+                case EntityKind.Medic: return (selected.AttackTarget!=null?"Mending "+StrategySettings.Label(selected.AttackTarget.kind).ToLower():"Follows and mends wounded troops")+"\n"+match.settings.medicHealPerSecond+" health per second";
+                case EntityKind.Engineer: return (selected.Order==UnitOrder.Repair?"Repairing a structure":"Repairs structures, fights poorly")+"\n"+match.settings.engineerRepairPerSecond+" health/s / "+match.settings.repairMineralsPerHundredHealth+" minerals per 100";
+                case EntityKind.Turret: return "Defends automatically\n"+Counters(EntityKind.Turret);
+            }
+            if(match.settings.IsProducer(selected.kind)) return "Right-click ground to set rally\n+"+match.settings.producerSupply+" supply";
+            if(match.settings.Profile(selected.kind)!=null) return "Attack-move to engage along a route\n"+Counters(selected.kind);
+            return "Click an object for details and actions";
+        }
         void UpdatePopup(StrategyEntity selected)
         {
             bool friendly=selected!=null && !selected.IsEnemy;
             bool hq=friendly && selected.kind==EntityKind.Headquarters;
-            bool producer=friendly && (hq || selected.kind==EntityKind.Barracks);
+            bool producer=friendly && match.settings.IsProducer(selected.kind);
             bool units=commander.Selection.Exists(e=>e!=null && e.Alive && e.IsUnit);
             bool workers=commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Worker);
-            bool soldiers=commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Soldier);
+            bool troops=commander.Selection.Exists(e=>e!=null && e.Alive && e.IsUnit && !e.IsEnemy && e.kind!=EntityKind.Worker);
             visibleActions.Clear();
             void Show(Button button, bool show) { button.gameObject.SetActive(show); if(show) visibleActions.Add(button); }
-            Show(train,producer); Show(move,units); Show(gather,workers); Show(attack,soldiers);
-            Show(rally,friendly && selected.kind==EntityKind.Barracks);
-            Show(barracks,hq); Show(turret,hq);
+            // Each producer shows only its own roster.
+            for(int i=0;i<TrainableKinds.Length;i++) Show(trainButtons[i],producer && match.settings.Profile(TrainableKinds[i])?.producer==selected.kind);
+            Show(move,units); Show(gather,workers); Show(attack,troops);
+            Show(rally,producer && !hq);
+            Show(barracks,hq); Show(rangerPost,hq); Show(supportBay,hq); Show(turret,hq); Show(relay,hq);
             foreach(var button in researchButtons) Show(button,hq);
             rally.interactable=match.Running && !commander.Targeting && !commander.Placement.HasValue;
             ActionLabel(rally,"Set rally point","Choose ground for new soldiers");
@@ -166,33 +208,44 @@ namespace Engchanok.StrategyGame
             if(match.Waves==null) return;
             var hq=match.Headquarters;
             resources.text=$"MINERALS\n<b>{match.Wallet.Minerals}</b>";
+            bool supplyFull=match.Supply!=null && match.Supply.Full;
+            supply.text=$"SUPPLY\n<b>{(match.Supply!=null?match.Supply.Used:0)} / {(match.Supply!=null?match.Supply.Cap:0)}</b>";
+            supply.color=supplyFull?new Color(1,.55f,.3f):StrategyUI.Accent;
             headquartersStatus.text=$"HQ INTEGRITY\n{(hq!=null?Mathf.CeilToInt(hq.Health.Current):0)} / {match.settings.headquartersHealth}";
             StrategyUI.SetProgress(headquartersProgress,hq!=null?hq.Health.Current/hq.Health.Maximum:0);
             wave.text=match.Practice?"PRACTICE / NO ENEMIES\nLearn at your own pace":match.Waves.Result!=MatchResult.Playing?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nMISSION COMPLETE":match.Waves.Active?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nHOSTILES  {match.HostileCount}":$"PREPARE / WAVE {match.Waves.Wave+1}\nINCOMING IN {Mathf.CeilToInt(match.Waves.Countdown)}s";
             var selected=commander.Selection.Count==1?commander.Selection[0]:commander.Selection.Count==0 && commander.InspectedObject!=null?commander.InspectedObject.GetComponent<StrategyEntity>():null;
             if(selected!=null && !selected.Alive) selected=null;
-            selection.text=selected!=null?$"{selected.kind.ToString().ToUpper()}  /  {Mathf.CeilToInt(selected.Health.Current)} HP":$"{commander.Selection.Count} UNITS SELECTED";
-            queue.text=selected!=null && selected.Production.Count>0?$"Training: {selected.Production.Count} queued - {Mathf.CeilToInt(selected.Production.Remaining)}s":selected!=null && selected.kind==EntityKind.Barracks?"Right-click ground to set rally":selected!=null && selected.kind==EntityKind.Headquarters?"Train workers / Build / Research":selected!=null && selected.kind==EntityKind.Worker?(selected.MiningTarget!=null?"Gathering and delivering":"Choose Gather to start mining")+"\nCarrying "+selected.Cargo+" / "+match.WorkerCapacity:selected!=null && selected.kind==EntityKind.Soldier?"Use Attack-move to engage along a route":"Click an object for details and actions";
-            bool producer=selected!=null && (selected.kind==EntityKind.Headquarters || selected.kind==EntityKind.Barracks);
-            var kind=selected!=null && selected.kind==EntityKind.Barracks?EntityKind.Soldier:EntityKind.Worker;
-            train.GetComponentInChildren<Text>().text=producer?$"Train {kind}\n{match.settings.Cost(kind)} minerals":"Select HQ / barracks\nto train units";
-            trainingProgress.transform.parent.gameObject.SetActive(producer && selected.Production.Count>0);
-            if(producer) StrategyUI.SetProgress(trainingProgress,1-selected.Production.Remaining/Mathf.Max(.1f,kind==EntityKind.Worker?match.settings.workerTraining:match.settings.soldierTraining));
+            string armor=selected!=null && match.settings.Armor(selected.kind)!=ArmorClass.Structure?"  /  "+StrategySettings.ArmorName(match.settings.Armor(selected.kind)).ToUpper():"";
+            selection.text=selected!=null?$"{StrategySettings.Label(selected.kind).ToUpper()}  /  {Mathf.CeilToInt(selected.Health.Current)} HP{armor}":$"{commander.Selection.Count} UNITS SELECTED";
+            queue.text=Details(selected);
+            bool producer=selected!=null && match.settings.IsProducer(selected.kind);
             bool ready=match.Running && !commander.Placement.HasValue && !commander.Targeting;
-            train.interactable=ready && producer && selected.Production.Count<5 && match.Wallet.Minerals>=match.settings.Cost(kind);
-            attack.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Soldier);
-            barracks.GetComponentInChildren<Text>().text=$"Build barracks\n{match.settings.barracksCost} minerals";
-            turret.GetComponentInChildren<Text>().text=$"Build turret\n{match.settings.turretCost} minerals";
-            barracks.interactable=ready && match.Wallet.Minerals>=match.settings.barracksCost;
-            turret.interactable=ready && match.Wallet.Minerals>=match.settings.turretCost;
+            var front=producer?(selected.Production.Next ?? match.DefaultTrained(selected.kind) ?? EntityKind.Worker):EntityKind.Worker;
+            trainingProgress.transform.parent.gameObject.SetActive(producer && selected.Production.Count>0);
+            if(producer && selected.Production.Count>0) StrategyUI.SetProgress(trainingProgress,1-selected.Production.Remaining/Mathf.Max(.1f,match.settings.TrainSeconds(front)));
+            for(int i=0;i<TrainableKinds.Length;i++)
+            {
+                var unit=TrainableKinds[i]; var button=trainButtons[i]; var profile=match.settings.Profile(unit);
+                if(profile==null) continue;
+                // Labelled every frame regardless of visibility: UpdatePopup runs after this, so a freshly shown button would otherwise read stale for a frame.
+                int queued=producer?selected.Production.Count:0;
+                bool room=match.Supply==null || match.Supply.Fits(profile.supply);
+                bool affordable=match.Wallet.Minerals>=profile.cost;
+                button.interactable=ready && producer && queued<5 && room && affordable;
+                ActionLabel(button,"Train "+StrategySettings.Label(unit),queued>=5?"Queue full (5)":!room?"Supply full / Build a relay":!affordable?"Need "+(profile.cost-match.Wallet.Minerals)+" minerals":profile.cost+" minerals / "+profile.supply+" supply / "+profile.trainSeconds+"s");
+            }
+            attack.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.IsUnit && !e.IsEnemy && e.kind!=EntityKind.Worker);
+            BuildLabel(barracks,EntityKind.Barracks,"Trains soldiers and defenders",ready);
+            BuildLabel(rangerPost,EntityKind.RangerPost,"Trains rangers",ready);
+            BuildLabel(supportBay,EntityKind.SupportBay,"Trains medics and engineers",ready);
+            BuildLabel(turret,EntityKind.Turret,"Automatic defense",ready);
+            BuildLabel(relay,EntityKind.SupplyRelay,"+"+match.settings.relaySupply+" supply",ready);
             move.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.IsUnit);
             gather.interactable=ready && commander.Selection.Exists(e=>e!=null && e.Alive && e.kind==EntityKind.Worker);
             ActionLabel(move,"Move",move.interactable?"Choose destination":"Select units");
             ActionLabel(gather,"Gather",gather.interactable?"Choose minerals":"Select workers");
-            ActionLabel(attack,"Attack-move [F]",attack.interactable?"Choose destination":"Select soldiers");
-            if(producer) ActionLabel(train,"Train "+kind,selected.Production.Count>=5?"Queue full (5)":match.Wallet.Minerals<match.settings.Cost(kind)?"Need "+(match.settings.Cost(kind)-match.Wallet.Minerals)+" minerals":match.settings.Cost(kind)+" minerals / "+(kind==EntityKind.Worker?match.settings.workerTraining:match.settings.soldierTraining)+"s");
-            ActionLabel(barracks,"Build barracks / "+match.settings.barracksCost+" minerals",match.Wallet.Minerals<match.settings.barracksCost?"Need more minerals":"Trains soldiers / Instant");
-            ActionLabel(turret,"Build turret / "+match.settings.turretCost+" minerals",match.Wallet.Minerals<match.settings.turretCost?"Need more minerals":"Automatic defense / Instant");
+            ActionLabel(attack,"Attack-move [F]",attack.interactable?"Choose destination":"Select troops");
             for(int i=0;i<3;i++)
             {
                 var upgrade=(UpgradeKind)i;
@@ -208,7 +261,7 @@ namespace Engchanok.StrategyGame
             if(match.Research.Active.HasValue && (selected==null || selected.kind!=EntityKind.Worker)) queue.text+="\n"+StrategySettings.ResearchName(match.Research.Active.Value)+": "+Mathf.CeilToInt(match.Research.Remaining)+"s left";
             var next=match.settings.Composition(Mathf.Min(match.Waves.Wave+1,match.Waves.Total));
             objective.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
-            objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":"Next wave: "+next.standard+" standard / "+next.runners+" runners / "+next.brutes+" brutes";
+            objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":"Next wave: "+next.standard+" standard (Medium) / "+next.runners+" runners (Light) / "+next.brutes+" brutes (Heavy)";
             tutorialPanel.gameObject.SetActive(match.Practice && match.Running);
             if(match.Practice)
             {
@@ -222,9 +275,9 @@ namespace Engchanok.StrategyGame
                 tutorialText.text=instructions[Mathf.Min(step,6)]+(step<6?"\nPractice progress resets when you deploy.":"");
                 ActionLabel(tutorialNext,step>=6?"Start fresh mission":"Skip tutorial","Normal resources / five waves");
                 for(int i=0;i<3;i++) Highlight(researchButtons[i],step==5 && !match.Research.Active.HasValue && !match.Research.Completed((UpgradeKind)i));
-                Highlight(gather,step==1); Highlight(barracks,step==2); Highlight(train,step==3); Highlight(attack,step==4);
+                Highlight(gather,step==1); Highlight(barracks,step==2); Highlight(TrainButton(EntityKind.Soldier),step==3); Highlight(attack,step==4);
             }
-            notice.text=commander.TargetingRally?"RALLY / Click reachable ground. Esc or right-click cancels.":commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(kind)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
+            notice.text=commander.TargetingRally?"RALLY / Click reachable ground. Esc or right-click cancels.":commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(front)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
             muteLabel.text=StrategyFeedback.Muted?"Muted":"Sound";
             overlay.gameObject.SetActive(match.Paused || match.Waves.Result!=MatchResult.Playing); resume.gameObject.SetActive(match.Paused);
             resultTitle.text=match.Paused?"MISSION PAUSED":match.Waves.Result==MatchResult.Victory?"OUTPOST SECURED":"OUTPOST LOST";
@@ -239,8 +292,8 @@ namespace Engchanok.StrategyGame
             if(commander.Selection.Count>1)
             {
                 int workers=commander.Selection.FindAll(e=>e!=null && e.kind==EntityKind.Worker).Count;
-                int soldiers=commander.Selection.FindAll(e=>e!=null && e.kind==EntityKind.Soldier).Count;
-                queue.text=workers+" workers / "+soldiers+" soldiers\nCommands affect eligible units.";
+                int troopCount=commander.Selection.FindAll(e=>e!=null && e.IsUnit && !e.IsEnemy && e.kind!=EntityKind.Worker).Count;
+                queue.text=workers+" workers / "+troopCount+" troops\nCommands affect eligible units.";
             }
             else if(selected!=null)
             {

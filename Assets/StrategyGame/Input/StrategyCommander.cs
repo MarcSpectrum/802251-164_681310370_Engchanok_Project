@@ -35,7 +35,7 @@ namespace Engchanok.StrategyGame
         readonly Dictionary<int, List<StrategyEntity>> groups = new();
         public void BeginAttackMove()
         {
-            if (!match.Running || !Selection.Exists(e => e != null && e.Alive && e.kind == EntityKind.Soldier)) return;
+            if (!match.Running || !Selection.Exists(e => e != null && e.Alive && e.IsUnit && !e.IsEnemy && e.kind != EntityKind.Worker)) return;
             CancelInteractions(); TargetingAttackMove = true; Dragging = false; TargetingStarted?.Invoke();
         }
         public void StoreGroup(int number)
@@ -94,7 +94,7 @@ namespace Engchanok.StrategyGame
         }
         public void BeginRallyPoint()
         {
-            if (!match.Running || Selection.Count != 1 || Selection[0] == null || !Selection[0].Alive || Selection[0].kind != EntityKind.Barracks) return;
+            if (!match.Running || Selection.Count != 1 || Selection[0] == null || !Selection[0].Alive || !match.settings.IsProducer(Selection[0].kind)) return;
             CancelInteractions(); rallyProducer = Selection[0]; TargetingRally = true; TargetingStarted?.Invoke();
         }
         public void BeginPlacement(EntityKind kind) { if (match.Running) { CancelInteractions(); Placement = kind; TargetingStarted?.Invoke(); } }
@@ -189,7 +189,7 @@ namespace Engchanok.StrategyGame
             {
                 var enemy = commandHit.collider.GetComponentInParent<StrategyEntity>();
                 var deposit = commandHit.collider.GetComponentInParent<MineralDeposit>();
-                if (Selection.Count == 1 && Selection[0].kind == EntityKind.Barracks)
+                if (Selection.Count == 1 && match.settings.IsProducer(Selection[0].kind))
                 {
                     if (Selection[0].SetRallyPoint(commandHit.point)) StrategyFeedback.Marker(match, commandHit.point, Color.cyan);
                     else match.Notify("Choose reachable ground for the rally point.");
@@ -200,7 +200,7 @@ namespace Engchanok.StrategyGame
                 foreach (var unit in Selection)
                 {
                     if (!unit.IsUnit) continue;
-                    if (enemy != null && enemy.IsEnemy && unit.kind == EntityKind.Soldier) unit.Attack(enemy);
+                    if (enemy != null && enemy.IsEnemy && StrategyEntity.IsFighter(unit.kind)) unit.Attack(enemy);
                     else if (deposit != null && unit.kind == EntityKind.Worker) unit.Gather(deposit);
                     else
                     {

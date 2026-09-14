@@ -58,7 +58,7 @@ namespace Engchanok.StrategyGame.Tests
             match.Research.Tick(100); Assert.AreEqual(30,match.WorkerCapacity);
             Assert.IsTrue(match.StartResearch(UpgradeKind.SoldierWeapons)); match.Research.Tick(100);
             var soldier=match.Spawn(EntityKind.Soldier,new Vector3(-5,0,-15));
-            Assert.AreEqual(match.settings.soldierDamage*1.25f,match.CombatDamage(soldier.kind));
+            Assert.AreEqual(match.settings.Profile(EntityKind.Soldier).damage*1.25f,match.CombatDamage(soldier.kind));
             Assert.AreEqual(match.settings.turretDamage,match.CombatDamage(EntityKind.Turret));
             match.Headquarters.Damage(100000); yield return null;
             Assert.IsFalse(match.StartResearch(UpgradeKind.TurretWeapons));
@@ -76,7 +76,7 @@ namespace Engchanok.StrategyGame.Tests
             Assert.AreEqual(3,match.TutorialStep); Assert.AreEqual(0,match.Waves.Wave);
             commander.BeginOrder(UnitOrder.Gather); Assert.AreEqual(UnitOrder.Gather,commander.TargetingOrder);
             commander.BeginPlacement(EntityKind.Turret); Assert.IsFalse(commander.Targeting); commander.CancelPlacement();
-            var barracks=match.Entities.First(e=>e.kind==EntityKind.Barracks); match.settings.soldierTraining=.1f;
+            var barracks=match.Entities.First(e=>e.kind==EntityKind.Barracks); match.settings.Profile(EntityKind.Soldier).trainSeconds=.1f;
             Assert.IsTrue(match.Train(barracks)); yield return new WaitForSeconds(.5f);
             Assert.AreEqual(4,match.TutorialStep);
             commander.ClearSelection(); commander.Select(match.Entities.First(e=>e.kind==EntityKind.Soldier));
@@ -118,7 +118,7 @@ namespace Engchanok.StrategyGame.Tests
             Assert.IsFalse(match.CanPlace(EntityKind.Turret, new Vector3(39,0,39), out _));
             Assert.IsTrue(match.Build(EntityKind.Barracks, new Vector3(-9,0,-11)));
             var barracks = match.Entities.First(e => e.kind == EntityKind.Barracks);
-            match.settings.soldierTraining = .1f;
+            match.settings.Profile(EntityKind.Soldier).trainSeconds = .1f;
             Assert.IsTrue(match.Train(barracks));
             match.SetPaused(true);
             yield return new WaitForSecondsRealtime(.15f);
@@ -128,6 +128,106 @@ namespace Engchanok.StrategyGame.Tests
             yield return new WaitForSeconds(.5f);
             Assert.AreEqual(1, match.Entities.Count(e => e.kind == EntityKind.Soldier));
             Assert.AreEqual(0, barracks.Production.Count);
+        }
+        [UnityTest] public IEnumerator SupplyBlocksTrainingUntilRelayIsBuilt()
+        {
+            match.Wallet.Deposit(5000);
+            // Three starting workers at 3 supply each leave no room under the headquarters' own cap.
+            match.settings.Profile(EntityKind.Worker).supply = 3;
+            match.RecountSupply();
+            Assert.AreEqual(match.settings.headquartersSupply, match.Supply.Cap);
+            Assert.AreEqual(9, match.Supply.Used);
+            Assert.IsTrue(match.Supply.Fits(1)); Assert.IsFalse(match.Supply.Fits(3));
+            Assert.IsFalse(match.Train(match.Headquarters), "A full supply cap must refuse training.");
+            Assert.AreEqual(0, match.Headquarters.Production.Count);
+            Assert.IsTrue(match.Build(EntityKind.SupplyRelay, new Vector3(0,0,-22)));
+            match.RecountSupply();
+            Assert.AreEqual(match.settings.headquartersSupply + match.settings.relaySupply, match.Supply.Cap);
+            for (int i = 0; i < 3; i++) Assert.IsTrue(match.Train(match.Headquarters), "A relay must reopen training.");
+            Assert.IsTrue(match.Supply.Full);
+            Assert.AreEqual(3, match.Headquarters.Production.Count);
+            Assert.IsFalse(match.Train(match.Headquarters), "Queued jobs reserve supply, so a queue cannot outrun the cap.");
+            // A destroyed relay takes its contribution with it.
+            match.Entities.First(e => e.kind == EntityKind.SupplyRelay).Damage(100000);
+            yield return null;
+            Assert.AreEqual(match.settings.headquartersSupply, match.Supply.Cap);
+        }
+        [UnityTest] public IEnumerator HostilesPreferTheirPriorityTargetsAndArmorCounters()
+        {
+            match.Wallet.Deposit(2000);
+            Assert.IsTrue(match.Build(EntityKind.Turret, new Vector3(0,0,-22)));
+            var turret = match.Entities.First(e => e.kind == EntityKind.Turret);
+            var runner = match.Spawn(EntityKind.Runner, new Vector3(-25,0,25));
+            var brute = match.Spawn(EntityKind.Brute, new Vector3(25,0,25));
+            var standard = match.Spawn(EntityKind.Enemy, new Vector3(0,0,28));
+            Assert.AreEqual(EntityKind.Worker, match.PriorityTarget(runner).kind, "Runners must harass the mining lines.");
+            Assert.IsTrue(StrategyMatch.IsDefence(match.PriorityTarget(brute).kind), "Brutes must siege structures.");
+            Assert.AreSame(match.Headquarters, match.PriorityTarget(standard), "Standard hostiles must push the headquarters.");
+            Assert.IsNull(match.PriorityTarget(match.Headquarters), "Friendly entities have no priority target.");
+            // Turrets and soldiers answer opposite halves of a mixed wave.
+            Assert.Greater(match.CombatDamage(EntityKind.Turret,EntityKind.Brute), match.CombatDamage(EntityKind.Turret,EntityKind.Runner));
+            Assert.Greater(match.CombatDamage(EntityKind.Soldier,EntityKind.Runner), match.CombatDamage(EntityKind.Soldier,EntityKind.Brute));
+            Assert.AreEqual(match.CombatDamage(EntityKind.Soldier), match.CombatDamage(EntityKind.Soldier,EntityKind.Headquarters), "Structures take unscaled damage.");
+            foreach (var worker in match.Entities.Where(e => e.kind == EntityKind.Worker).ToArray()) worker.Damage(100000);
+            yield return null;
+            Assert.IsTrue(StrategyMatch.IsDefence(match.PriorityTarget(runner).kind), "With no workers left a runner falls back to structures.");
+            turret.Damage(100000);
+            yield return null;
+            Assert.AreSame(match.Headquarters, match.PriorityTarget(runner));
+            Assert.AreSame(match.Headquarters, match.PriorityTarget(brute));
+        }
+        [UnityTest] public IEnumerator MixedQueueSpawnsTheRightKindsAndReservesTheirSupply()
+        {
+            match.Wallet.Deposit(5000);
+            Assert.IsTrue(match.Build(EntityKind.Barracks, new Vector3(-9,0,-11)));
+            var barracks = match.Entities.First(e => e.kind == EntityKind.Barracks);
+            var soldier = match.settings.Profile(EntityKind.Soldier);
+            var defender = match.settings.Profile(EntityKind.Defender);
+            soldier.trainSeconds = .1f; defender.trainSeconds = .1f;
+            match.RecountSupply();
+            int before = match.Supply.Used;
+            Assert.IsTrue(match.Train(barracks, EntityKind.Soldier));
+            Assert.IsTrue(match.Train(barracks, EntityKind.Defender));
+            Assert.IsTrue(match.Train(barracks, EntityKind.Defender));
+            CollectionAssert.AreEqual(new[] { EntityKind.Soldier, EntityKind.Defender, EntityKind.Defender }, barracks.Production.Queued);
+            match.RecountSupply();
+            // A mixed queue must reserve what it will actually cost, not three of the cheapest.
+            Assert.AreEqual(before + soldier.supply + defender.supply * 2, match.Supply.Used);
+            Assert.AreNotEqual(before + soldier.supply * 3, match.Supply.Used);
+            // A ranger post cannot build barracks units, and a barracks cannot build rangers.
+            Assert.IsFalse(match.Train(barracks, EntityKind.Ranger), "A producer must refuse a unit outside its roster.");
+            Assert.IsFalse(match.Train(barracks, EntityKind.Worker));
+            Time.timeScale = 10;
+            float deadline = Time.realtimeSinceStartup + 15;
+            while (barracks.Production.Count > 0 && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.AreEqual(0, barracks.Production.Count, "The queue must drain.");
+            Assert.AreEqual(1, match.Entities.Count(e => e.kind == EntityKind.Soldier));
+            Assert.AreEqual(2, match.Entities.Count(e => e.kind == EntityKind.Defender));
+        }
+        [UnityTest] public IEnumerator MedicHealsWoundedAlliesAndEngineerRepairsBuildings()
+        {
+            match.Wallet.Deposit(5000);
+            match.settings.medicHealPerSecond = 400; match.settings.engineerRepairPerSecond = 400;
+            var soldier = match.Spawn(EntityKind.Soldier, new Vector3(-4,0,-18));
+            soldier.Damage(60);
+            float wounded = soldier.Health.Current;
+            Assert.Less(wounded, soldier.Health.Maximum);
+            match.Spawn(EntityKind.Medic, new Vector3(-5,0,-18));
+            Time.timeScale = 10;
+            float deadline = Time.realtimeSinceStartup + 10;
+            while (soldier.Health.Current <= wounded && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.Greater(soldier.Health.Current, wounded, "A medic must mend a wounded ally.");
+            // Engineers mend structures instead, and pay minerals for it.
+            Assert.IsTrue(match.Build(EntityKind.Turret, new Vector3(6,0,-18)));
+            var turret = match.Entities.First(e => e.kind == EntityKind.Turret);
+            turret.Damage(200);
+            float damaged = turret.Health.Current;
+            match.Spawn(EntityKind.Engineer, new Vector3(5,0,-18));
+            int purse = match.Wallet.Minerals;
+            deadline = Time.realtimeSinceStartup + 10;
+            while (turret.Health.Current <= damaged && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.Greater(turret.Health.Current, damaged, "An engineer must repair a damaged structure.");
+            Assert.Less(match.Wallet.Minerals, purse, "Repair must be paid for in minerals.");
         }
         [UnityTest] public IEnumerator FiveWavesCombatVictoryAndRestart()
         {
@@ -242,7 +342,7 @@ namespace Engchanok.StrategyGame.Tests
         }
         [UnityTest] public IEnumerator AttackMoveResumesAndExplicitAttackKeepsTarget()
         {
-            match.settings.soldierDamage=1000; match.settings.soldierRange=4;
+            match.settings.Profile(EntityKind.Soldier).damage=1000; match.settings.Profile(EntityKind.Soldier).range=4;
             Assert.IsTrue(match.TrySpawnUnit(EntityKind.Soldier,new Vector3(-10,0,0),out var soldier));
             var origin=soldier.transform.position;
             var target=match.Spawn(EntityKind.Enemy,origin+Vector3.forward*2);
@@ -265,7 +365,7 @@ namespace Engchanok.StrategyGame.Tests
             var producer=match.Entities.First(e=>e.kind==EntityKind.Barracks);
             var goal=new Vector3(-5,0,0); Assert.IsTrue(producer.SetRallyPoint(goal));
             Assert.IsFalse(producer.SetRallyPoint(new Vector3(200,0,200))); Assert.Less(Vector3.Distance(goal,producer.RallyPoint.Value),.1f); goal=producer.RallyPoint.Value;
-            match.settings.soldierTraining=.1f; Assert.IsTrue(match.Train(producer)); yield return new WaitForSeconds(.3f);
+            match.settings.Profile(EntityKind.Soldier).trainSeconds=.1f; Assert.IsTrue(match.Train(producer)); yield return new WaitForSeconds(.3f);
             var soldier=match.Entities.First(e=>e.kind==EntityKind.Soldier);
             Assert.AreEqual(UnitOrder.AttackMove,soldier.Order); Assert.AreEqual(goal,soldier.OrderDestination);
             var commander=Object.FindFirstObjectByType<StrategyCommander>(); commander.Select(soldier); commander.StoreGroup(1); commander.ClearSelection(); commander.RecallGroup(1);

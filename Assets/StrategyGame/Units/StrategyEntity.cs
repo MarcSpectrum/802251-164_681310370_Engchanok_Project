@@ -5,8 +5,12 @@ namespace Engchanok.StrategyGame
     public sealed class StrategyEntity : MonoBehaviour
     {
         public EntityKind kind;
-        public bool IsEnemy => kind == EntityKind.Enemy || kind == EntityKind.Runner || kind == EntityKind.Brute;
-        public bool IsUnit => kind == EntityKind.Worker || kind == EntityKind.Soldier || IsEnemy;
+        public bool IsEnemy => StrategyMatch.IsHostileKind(kind);
+        // Load-bearing: the prefab generator keys on this to decide agent-vs-obstacle, so a unit missing here cannot move.
+        public static bool IsUnitKind(EntityKind kind) => kind == EntityKind.Worker || kind == EntityKind.Soldier || kind == EntityKind.Ranger
+            || kind == EntityKind.Defender || kind == EntityKind.Medic || kind == EntityKind.Engineer || StrategyMatch.IsHostileKind(kind);
+        public static bool IsFighter(EntityKind kind) => kind == EntityKind.Soldier || kind == EntityKind.Ranger || kind == EntityKind.Defender || kind == EntityKind.Engineer;
+        public bool IsUnit => IsUnitKind(kind);
         public HealthModel Health { get; private set; }
         public ProductionQueue Production { get; } = new();
         public bool Alive => Health != null && Health.IsAlive;
@@ -16,7 +20,7 @@ namespace Engchanok.StrategyGame
         public MineralDeposit MiningTarget { get; private set; }
         public StrategyEntity AttackTarget { get; private set; }
         StrategyMatch match;
-        float attackTimer, mineTimer, stuckTimer;
+        float attackTimer, mineTimer, stuckTimer, supportTimer, repairDebt;
         Vector3 lastPosition;
         public UnitOrder Order { get; private set; }
         public Vector3 OrderDestination { get; private set; }
@@ -28,7 +32,7 @@ namespace Engchanok.StrategyGame
         {
             match = owner; Health = new HealthModel(match.settings.Health(kind));
             Agent = GetComponent<NavMeshAgent>();
-            if (Agent != null) Agent.speed = kind == EntityKind.Worker ? match.settings.workerSpeed : IsEnemy ? match.settings.EnemySpeed(kind) : match.settings.soldierSpeed;
+            if (Agent != null) Agent.speed = match.settings.Speed(kind);
             lastPosition = transform.position;
             match.Entities.Add(this);
             gameObject.AddComponent<StrategyFeedback>().Initialize(this, owner);
@@ -50,18 +54,19 @@ namespace Engchanok.StrategyGame
         }
         public void Attack(StrategyEntity target)
         {
-            if (!match.Running || !Alive || kind != EntityKind.Soldier || target == null || !target.Alive || !target.IsEnemy) return;
+            if (!match.Running || !Alive || !IsFighter(kind) || target == null || !target.Alive || !target.IsEnemy) return;
             MiningTarget = null; commandedMove = false; AttackTarget = target; Order = UnitOrder.Attack;
         }
+        // Medics and engineers accept attack-move so they advance with the army; they simply support instead of shooting.
         public bool AttackMove(Vector3 destination)
         {
-            if (!match.Running || !Alive || kind != EntityKind.Soldier) return false;
+            if (!match.Running || !Alive || !IsUnit || IsEnemy || kind == EntityKind.Worker) return false;
             if (!Move(destination)) return false;
             commandedMove = false; Order = UnitOrder.AttackMove; return true;
         }
         public bool SetRallyPoint(Vector3 destination)
         {
-            if (!match.Running || !Alive || kind != EntityKind.Barracks || !NavMesh.SamplePosition(destination, out var hit, 1, NavMesh.AllAreas)) return false;
+            if (!match.Running || !Alive || !match.settings.IsProducer(kind) || !NavMesh.SamplePosition(destination, out var hit, 1, NavMesh.AllAreas)) return false;
             var path = new NavMeshPath();
             if (!NavMesh.SamplePosition(transform.position + Vector3.forward * (match.settings.Radius(kind) + 1), out var origin, 3, NavMesh.AllAreas)
                 || !NavMesh.CalculatePath(origin.position, hit.position, NavMesh.AllAreas, path) || path.status != NavMeshPathStatus.PathComplete) return false;
@@ -90,15 +95,19 @@ namespace Engchanok.StrategyGame
             float dt = Time.deltaTime;
 
             attackTimer = Mathf.Max(0, attackTimer - dt);
-            if (kind == EntityKind.Headquarters || kind == EntityKind.Barracks)
+            if (match.settings.IsProducer(kind))
             {
                 Production.Tick(dt);
-                if (Production.Ready && match.TrySpawnUnit(kind == EntityKind.Headquarters ? EntityKind.Worker : EntityKind.Soldier, transform.position, out var trained)) { Production.Complete(); if (RallyPoint.HasValue) trained.AttackMove(RallyPoint.Value); }
+                // The queue owns the kind, so one producer can hold several unit types at once.
+                if (Production.Ready && Production.Next.HasValue && match.TrySpawnUnit(Production.Next.Value, transform.position, out var trained)) { Production.Complete(); if (RallyPoint.HasValue) trained.AttackMove(RallyPoint.Value); }
             }
             if (kind == EntityKind.Worker) { UpdateMining(dt); return; }
-            if (kind != EntityKind.Soldier && kind != EntityKind.Turret && !IsEnemy) return;
+            if (kind == EntityKind.Medic) { UpdateSupport(dt, true); return; }
+            // An engineer only fights when there is nothing left to mend.
+            if (kind == EntityKind.Engineer && !commandedMove && UpdateSupport(dt, false)) return;
+            if (!IsFighter(kind) && kind != EntityKind.Turret && !IsEnemy) return;
             if (AttackTarget == null || !AttackTarget.Alive) { AttackTarget = null; if (Order == UnitOrder.Attack) Order = UnitOrder.Idle; }
-            float range = kind == EntityKind.Turret ? match.settings.turretRange : IsEnemy ? match.settings.enemyRange : match.settings.soldierRange;
+            float range = match.settings.Range(kind);
             if (commandedMove)
             {
                 if (!Agent.pathPending && (!Agent.hasPath || Agent.remainingDistance <= Agent.stoppingDistance + .2f)) commandedMove = false;
@@ -106,7 +115,7 @@ namespace Engchanok.StrategyGame
             }
             var nearby = match.NearestOpponent(this, IsEnemy ? 8 : range);
             if (nearby != null && Order != UnitOrder.Attack) AttackTarget = nearby;
-            if (AttackTarget == null && IsEnemy) AttackTarget = match.Headquarters;
+            if (AttackTarget == null && IsEnemy) AttackTarget = match.PriorityTarget(this);
             if (AttackTarget == null)
             {
                 if (Order == UnitOrder.AttackMove && Vector3.Distance(transform.position, OrderDestination) > .7f)
@@ -122,10 +131,52 @@ namespace Engchanok.StrategyGame
                 {
                     attackTimer = match.settings.attackInterval;
                     ShowShot(AttackTarget.transform.position + Vector3.up);
-                    AttackTarget.Damage(match.CombatDamage(kind));
+                    AttackTarget.Damage(match.CombatDamage(kind, AttackTarget.kind));
                 }
             }
             else if (Agent != null && !Navigate(AttackTarget.transform.position, reach * .85f)) { AttackTarget = null; if (Order == UnitOrder.Attack) Order = UnitOrder.Idle; }
+        }
+        // Medics mend wounded units for free; engineers mend damaged structures and pay minerals for every point restored.
+        bool UpdateSupport(float dt, bool units)
+        {
+            if (commandedMove)
+            {
+                if (Agent != null && Agent.isOnNavMesh && !Agent.pathPending && (!Agent.hasPath || Agent.remainingDistance <= Agent.stoppingDistance + .2f)) commandedMove = false;
+                DetectStuck(dt); return true;
+            }
+            float range = match.settings.Range(kind);
+            var patient = match.NearestWounded(this, Mathf.Max(range, 30), !units);
+            if (patient == null)
+            {
+                if (Order == UnitOrder.AttackMove && Vector3.Distance(transform.position, OrderDestination) > .7f)
+                { if (!Navigate(OrderDestination, .3f)) Order = UnitOrder.Idle; return true; }
+                AttackTarget = null; if (Order == UnitOrder.Heal || Order == UnitOrder.Repair) Order = UnitOrder.Idle;
+                return false;
+            }
+            AttackTarget = patient; Order = units ? UnitOrder.Heal : UnitOrder.Repair;
+            float reach = range + match.settings.Radius(patient.kind);
+            if (Vector3.Distance(transform.position, patient.transform.position) > reach)
+            { if (!Navigate(patient.transform.position, reach * .85f)) { AttackTarget = null; return false; } return true; }
+            Stop();
+            float amount = (units ? match.settings.medicHealPerSecond : match.settings.engineerRepairPerSecond) * dt;
+            if (!units)
+            {
+                // Repair is paid for in minerals, so holding a turret together competes with building the next one.
+                repairDebt += amount * match.settings.repairMineralsPerHundredHealth / 100f;
+                int due = Mathf.FloorToInt(repairDebt);
+                if (due > 0)
+                {
+                    if (!match.Wallet.TrySpend(due)) { repairDebt = 0; return true; }
+                    repairDebt -= due;
+                }
+            }
+            if (patient.Health.Heal(amount) > 0 && supportTimer <= 0)
+            {
+                supportTimer = .25f;
+                StrategyEffects.For(match).Emit(transform.position + Vector3.up * 1.4f, patient.transform.position + Vector3.up, units ? new Color(.45f, 1, .6f) : new Color(1, .85f, .4f), .18f, .06f);
+            }
+            supportTimer -= dt;
+            return true;
         }
         void UpdateMining(float dt)
         {

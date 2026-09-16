@@ -94,13 +94,14 @@ namespace Engchanok.StrategyGame
                 researchProgress[i]=StrategyUI.Progress(researchButtons[i].transform,"Research progress",new Vector2(.04f,.025f),new Vector2(.96f,.06f),StrategyUI.Accent);
             }
             popup.gameObject.SetActive(false);
-            objective=StrategyUI.Label(canvas.transform,"Protect headquarters. Defeat five waves.",new Vector2(.01f,.83f),new Vector2(.65f,.895f),23,StrategyUI.Accent);
+            // Deep enough for the seven-kind final-wave preview to wrap; the tutorial panel starts at x .65, so this column is free.
+            objective=StrategyUI.Label(canvas.transform,"Protect headquarters. Defeat five waves.",new Vector2(.01f,.76f),new Vector2(.65f,.895f),23,StrategyUI.Accent);
             tutorialPanel=StrategyUI.Panel(canvas.transform,"Guided practice",new Vector2(.65f,.51f),new Vector2(.99f,.83f),StrategyUI.Ink);
             tutorialText=StrategyUI.Label(tutorialPanel.transform,"",new Vector2(0,.27f),Vector2.one,23);
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false);
             help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Ink);
-            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nClick objects: inspect / actions    C: focus    Home: HQ\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes siege your\nstructures, standard hostiles march on headquarters.",new Vector2(0,.15f),Vector2.one,20);
+            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nClick objects: inspect / actions    C: focus    Home: HQ\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
             drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
             overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
@@ -119,6 +120,27 @@ namespace Engchanok.StrategyGame
         // Percentages keep the counter table readable without culture-sensitive decimal formatting.
         string Percent(EntityKind attacker, EntityKind target) => Mathf.RoundToInt(match.settings.DamageScale(attacker,target)*100)+"%";
         string Counters(EntityKind attacker) => "vs Light "+Percent(attacker,EntityKind.Runner)+"  Medium "+Percent(attacker,EntityKind.Enemy)+"  Heavy "+Percent(attacker,EntityKind.Brute);
+        // "6 standard" reads better than "6 standards", so the one irregular name is spelled out and the rest take a plural s.
+        static string HostileWord(EntityKind kind,int count) => kind==EntityKind.Enemy?"standard":StrategySettings.Label(kind).ToLower()+(count==1?"":"s");
+        // What this hostile will actually do, read from its own profile rather than from a per-kind sentence.
+        string HostileRole(EntityKind kind)
+        {
+            if(match.settings.MendsUnits(kind)) return "Mends wounded hostiles. Focus it down first.";
+            return match.settings.Priority(kind) switch
+            {
+                HostilePriority.SoftTargets=>"Hunts workers and your other Light units.",
+                HostilePriority.ArmoredTargets=>"Hunts Heavy units. A defender screen will not stop it.",
+                HostilePriority.Structures=>"Sieges your structures.",
+                _=>"Marches on headquarters.",
+            };
+        }
+        // The preview is built from the wave's own groups, so a newly authored hostile appears here without another edit.
+        string WavePreview(WaveComposition next)
+        {
+            var parts=new List<string>();
+            foreach(var (kind,count) in next.Groups()) parts.Add(count+" "+HostileWord(kind,count)+" ("+StrategySettings.ArmorName(match.settings.Armor(kind))+")");
+            return parts.Count==0?"No hostiles remain":"Next wave: "+string.Join(" / ",parts);
+        }
         Button TrainButton(EntityKind kind) => trainButtons[System.Array.IndexOf(TrainableKinds,kind)];
         void BuildLabel(Button button, EntityKind kind, string benefit, bool ready)
         {
@@ -261,7 +283,7 @@ namespace Engchanok.StrategyGame
             if(match.Research.Active.HasValue && (selected==null || selected.kind!=EntityKind.Worker)) queue.text+="\n"+StrategySettings.ResearchName(match.Research.Active.Value)+": "+Mathf.CeilToInt(match.Research.Remaining)+"s left";
             var next=match.settings.Composition(Mathf.Min(match.Waves.Wave+1,match.Waves.Total));
             objective.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
-            objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":"Next wave: "+next.standard+" standard (Medium) / "+next.runners+" runners (Light) / "+next.brutes+" brutes (Heavy)";
+            objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":WavePreview(next);
             tutorialPanel.gameObject.SetActive(match.Practice && match.Running);
             if(match.Practice)
             {
@@ -297,7 +319,7 @@ namespace Engchanok.StrategyGame
             }
             else if(selected!=null)
             {
-                if(selected.IsEnemy) queue.text="Hostile / "+selected.kind+"\nAttacks the outpost and nearby defenders.";
+                if(selected.IsEnemy) queue.text="Hostile / "+StrategySettings.Label(selected.kind)+"\n"+HostileRole(selected.kind);
                 else if(selected.kind==EntityKind.Turret) queue.text="Automatic defense\nDamage: "+match.CombatDamage(selected.kind);
                 else if(selected.IsUnit) queue.text="Order: "+selected.Order+(selected.kind==EntityKind.Worker?"\nCarrying "+selected.Cargo+" / "+match.WorkerCapacity:"\nDamage: "+match.CombatDamage(selected.kind));
             }

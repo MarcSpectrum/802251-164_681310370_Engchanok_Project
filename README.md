@@ -28,10 +28,27 @@ Three rules make every mission a series of tradeoffs rather than a build queue.
 | Runner | 130% | 95% | 45% |
 | Standard hostile | 100% | 100% | 80% |
 | Brute | 150% | 110% | 70% |
+| Lancer | 100% | 115% | 90% |
+| Breaker | 70% | 95% | 160% |
+| Juggernaut | 120% | 120% | 85% |
 
-Light is workers, rangers, medics, engineers and runners; Medium is soldiers and standard hostiles; Heavy is defenders and brutes. Rangers shred runners, but rangers are Light and runners hit Light hardest, so put defenders in front. Defenders and turrets crush brutes, and brutes only manage 70% against Heavy, so the screen holds. The preparation preview names each group's armor class, so read it and build the answer before the wave arrives. Structures take unscaled damage in both directions.
+Light is workers, rangers, medics, engineers, runners, lancers and wardens; Medium is soldiers, standard hostiles and breakers; Heavy is defenders, brutes and juggernauts. Rangers shred runners, but rangers are Light and runners hit Light hardest, so put defenders in front. Defenders and turrets crush brutes, so the screen holds — until a **breaker** arrives, which is built to smash exactly that screen at 160% against Heavy. Answer breakers with soldiers, not more defenders. The preparation preview names each group's armor class, so read it and build the answer before the wave arrives. Structures take unscaled damage in both directions.
 
-**Hostiles pick their targets.** Runners hunt anything Light — workers, rangers, medics, engineers — brutes siege your structures, and standard hostiles march on headquarters. Ringing the HQ with turrets no longer wins the mission; your mining line and your support units need cover too.
+**Hostiles pick their targets.** Runners hunt anything Light — workers, rangers, medics, engineers — breakers hunt your Heavy units, brutes, lancers and juggernauts siege your structures, and standard hostiles march on headquarters. Ringing the HQ with turrets no longer wins the mission; your mining line and your support units need cover too.
+
+## What is coming for you
+
+| Hostile | Health | Damage | Speed | Range | Armor | Threat |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| Standard | 90 | 12 | 3.5 | 2 | Medium | Marches on headquarters |
+| Runner | 54 | 8 | 5.6 | 2 | Light | Hunts your workers and support |
+| Brute | 225 | 19 | 2.3 | 2 | Heavy | Sieges your structures |
+| Lancer | 72 | 9 | 3.0 | **9** | Light | Shoots your buildings from outside the screen |
+| Breaker | 117 | 13 | 3.5 | 2 | Medium | **Smashes a defender screen** |
+| Warden | 90 | none | 3.2 | 8 heal | Light | Mends the wave until you kill it |
+| Juggernaut | 720 | 26 | 1.9 | 2.5 | Heavy | Final-wave siege engine |
+
+**Lancers** are the only hostiles that shoot. Range 9 beats a defender screen, but your turret reaches 12 and wins the duel, so turrets are the answer. **Wardens** carry no weapon and heal wounded hostiles — the wave stops dying until the warden does, and they are Light and unarmed, so focus them. The **juggernaut** arrives once, in the final wave: eight times a standard hostile's health and no tricks, so defenders and turrets still answer it.
 
 ## Your army
 

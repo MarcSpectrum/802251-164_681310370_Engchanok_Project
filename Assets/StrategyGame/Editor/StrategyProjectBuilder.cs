@@ -46,11 +46,14 @@ namespace Engchanok.StrategyGame.Editor
                 float radius = settings.Radius(kind);
                 bool unit = entity.IsUnit;
                 var collider = obj.AddComponent<CapsuleCollider>(); collider.radius = radius; collider.height = unit ? 1.8f : 3; collider.center = Vector3.up * collider.height / 2;
-                PrimitiveType shape = kind == EntityKind.Runner ? PrimitiveType.Sphere : kind == EntityKind.Brute ? PrimitiveType.Cube : unit ? PrimitiveType.Capsule : kind == EntityKind.Turret ? PrimitiveType.Cylinder : PrimitiveType.Cube;
+                PrimitiveType shape = kind == EntityKind.Runner ? PrimitiveType.Sphere : kind == EntityKind.Brute || kind == EntityKind.Juggernaut ? PrimitiveType.Cube : unit ? PrimitiveType.Capsule : kind == EntityKind.Turret ? PrimitiveType.Cylinder : PrimitiveType.Cube;
                 Visual(obj.transform, "Body", shape, new Vector3(0, unit ? .9f : 1.2f, 0), unit ? new Vector3(.9f, .9f, .9f) : new Vector3(radius * 1.55f, 2.4f, radius * 1.55f), kind == EntityKind.Worker ? worker : entity.IsEnemy ? red : unit ? cyan : metal);
                 if (kind == EntityKind.Turret) obj.transform.Find("Body").localScale = new Vector3(radius*1.55f,.8f,radius*1.55f);
                 if (kind == EntityKind.Runner) obj.transform.Find("Body").localScale = new Vector3(.65f,.55f,1.3f);
                 if (kind == EntityKind.Brute) obj.transform.Find("Body").localScale = new Vector3(1.4f,1.7f,1.2f);
+                if (kind == EntityKind.Juggernaut) obj.transform.Find("Body").localScale = new Vector3(1.95f,2.2f,1.7f);
+                if (kind == EntityKind.Breaker) obj.transform.Find("Body").localScale = new Vector3(1.15f,1.05f,1);
+                if (kind == EntityKind.Lancer) obj.transform.Find("Body").localScale = new Vector3(.8f,1,.8f);
                 if (kind == EntityKind.SupplyRelay) obj.transform.Find("Body").localScale = new Vector3(radius*1.15f,1.8f,radius*1.15f);
                 if (unit)
                 {
@@ -77,7 +80,8 @@ namespace Engchanok.StrategyGame.Editor
                 if (unit)
                 {
                     DetailEntity(obj.transform, kind, radius, metal, cyan, worker, red, beam);
-                    var agent = obj.AddComponent<NavMeshAgent>(); agent.radius = .48f; agent.height = 1.8f; agent.angularSpeed = 720; agent.acceleration = 35; agent.avoidancePriority = entity.IsEnemy ? 60 : 40;
+                    // Only an oversized unit widens its agent; every existing kind keeps the .48 it was navigating with.
+                    var agent = obj.AddComponent<NavMeshAgent>(); agent.radius = radius > .5f ? radius : .48f; agent.height = kind == EntityKind.Juggernaut ? 2.6f : 1.8f; agent.angularSpeed = 720; agent.acceleration = 35; agent.avoidancePriority = entity.IsEnemy ? 60 : 40;
                 }
                 else
                 {
@@ -141,13 +145,14 @@ namespace Engchanok.StrategyGame.Editor
         }
         static void DetailEntity(Transform parent, EntityKind kind, float radius, Material metal, Material cyan, Material amber, Material red, Material glow)
         {
-            Material team=kind==EntityKind.Worker?amber:kind==EntityKind.Enemy || kind==EntityKind.Runner || kind==EntityKind.Brute?red:cyan;
+            Material team=kind==EntityKind.Worker?amber:StrategyMatch.IsHostileKind(kind)?red:cyan;
             var detail=new GameObject("Visual details").transform; detail.SetParent(parent,false);
             // Every humanoid shares this silhouette; anything omitted here falls to the building branch and renders as architecture.
             if(kind==EntityKind.Worker || kind==EntityKind.Soldier || kind==EntityKind.Enemy || kind==EntityKind.Brute
-                || kind==EntityKind.Ranger || kind==EntityKind.Defender || kind==EntityKind.Medic || kind==EntityKind.Engineer)
+                || kind==EntityKind.Ranger || kind==EntityKind.Defender || kind==EntityKind.Medic || kind==EntityKind.Engineer
+                || kind==EntityKind.Lancer || kind==EntityKind.Breaker || kind==EntityKind.Warden || kind==EntityKind.Juggernaut)
             {
-                float width=kind==EntityKind.Brute?1.45f:kind==EntityKind.Defender?1.3f:1;
+                float width=kind==EntityKind.Juggernaut?1.9f:kind==EntityKind.Brute?1.45f:kind==EntityKind.Defender?1.3f:kind==EntityKind.Breaker?1.25f:1;
                 Visual(detail,"Chest armor",PrimitiveType.Cube,new Vector3(0,1.15f,.25f),new Vector3(.8f*width,.65f,.35f),metal);
                 for(int side=-1;side<=1;side+=2)
                 {
@@ -172,6 +177,33 @@ namespace Engchanok.StrategyGame.Editor
                 {
                     Visual(detail,"Welder",PrimitiveType.Sphere,new Vector3(.5f,.95f,.75f),Vector3.one*.22f,glow);
                     Visual(detail,"Part rack",PrimitiveType.Cube,new Vector3(0,1,-.55f),new Vector3(.6f,.45f,.3f),metal);
+                }
+                // A lancer reads as the hostile answer to a ranger: the same long barrel and optic, in coral.
+                if(kind==EntityKind.Lancer)
+                {
+                    Visual(detail,"Lance barrel",PrimitiveType.Cube,new Vector3(.42f,1.1f,.8f),new Vector3(.16f,.16f,2.1f),metal);
+                    Visual(detail,"Muzzle glow",PrimitiveType.Sphere,new Vector3(.42f,1.1f,1.85f),Vector3.one*.2f,glow);
+                    Visual(detail,"Spotter fin",PrimitiveType.Cube,new Vector3(-.4f,1.5f,-.1f),new Vector3(.12f,.5f,.35f),red);
+                }
+                // A breaker carries the tools for cracking armor: paired maul heads and a wedge.
+                if(kind==EntityKind.Breaker)
+                {
+                    for(int side=-1;side<=1;side+=2) Visual(detail,"Maul head",PrimitiveType.Cube,new Vector3(side*.72f,.95f,.45f),new Vector3(.38f,.38f,.62f),metal);
+                    Visual(detail,"Breaching wedge",PrimitiveType.Cube,new Vector3(0,1.5f,.5f),new Vector3(.9f,.22f,.5f),red);
+                }
+                // A warden mirrors the medic's aid cross so the player recognises the role instantly, in hostile coral.
+                if(kind==EntityKind.Warden)
+                {
+                    Visual(detail,"Warden cross",PrimitiveType.Cube,new Vector3(0,1.3f,-.62f),new Vector3(.5f,.14f,.1f),red);
+                    Visual(detail,"Warden post",PrimitiveType.Cube,new Vector3(0,1.3f,-.62f),new Vector3(.14f,.5f,.1f),red);
+                    Visual(detail,"Mend emitter",PrimitiveType.Sphere,new Vector3(0,1.85f,0),Vector3.one*.28f,glow);
+                }
+                // The juggernaut is a walking siege engine: a crown of plating over a heavy chassis.
+                if(kind==EntityKind.Juggernaut)
+                {
+                    Visual(detail,"Siege crown",PrimitiveType.Cube,new Vector3(0,2.35f,0),new Vector3(1.1f,.45f,1.5f),red);
+                    for(int side=-1;side<=1;side+=2) Visual(detail,"Ram plate",PrimitiveType.Cube,new Vector3(side*.95f,1.1f,.55f),new Vector3(.3f,1.1f,.8f),metal);
+                    Visual(detail,"Core vent",PrimitiveType.Sphere,new Vector3(0,1.35f,.7f),Vector3.one*.42f,glow);
                 }
             }
             else if(kind==EntityKind.Runner)

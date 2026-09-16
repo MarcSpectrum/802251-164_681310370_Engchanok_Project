@@ -106,7 +106,9 @@ namespace Engchanok.StrategyGame
                     foreach (var unit in new[] { EntityKind.Soldier, EntityKind.Defender, EntityKind.Ranger, EntityKind.Medic, EntityKind.Engineer })
                     {
                         var profile = match.settings.Profile(unit);
-                        int want = unit == EntityKind.Medic || unit == EntityKind.Engineer ? 2 : 4;
+                        // The hostile roster hits harder than the replay's old four-of-each army could hold, and defenders
+                        // are the screen that keeps rangers and support alive, so the front line is deepened first.
+                        int want = unit == EntityKind.Medic || unit == EntityKind.Engineer ? 2 : unit == EntityKind.Defender ? 6 : 5;
                         if (profile == null || match.Wallet.Minerals < profile.cost || match.Entities.Count(e => e != null && e.Alive && e.kind == unit) >= want) continue;
                         var source = match.Entities.FirstOrDefault(e => e != null && e.Alive && e.kind == profile.producer && e.Production.Count < 2);
                         if (source != null && match.Train(source, unit)) break;
@@ -161,7 +163,19 @@ namespace Engchanok.StrategyGame
             var enemy=match.Spawn(EntityKind.Brute,new Vector3(15,0,10));
             foreach(var entity in new[]{soldier,turret,barracks,enemy})
             {
+                if(entity==null) continue;
                 commander.InspectObject(entity.transform); yield return CaptureLayouts(directory,"inspect-"+entity.kind);
+            }
+            // One capture per hostile archetype, so the new popup lines are reviewed at every supported resolution.
+            // Each is spawned immediately before its own capture and removed after: standing inside the outpost, a hostile
+            // does not survive the three resolution passes of the capture ahead of it.
+            foreach(var kind in new[]{EntityKind.Lancer,EntityKind.Breaker,EntityKind.Warden,EntityKind.Juggernaut})
+            {
+                var hostile=match.Spawn(kind,new Vector3(18,0,26));
+                if(hostile==null) continue;
+                commander.InspectObject(hostile.transform);
+                yield return CaptureLayouts(directory,"inspect-"+kind);
+                if(hostile!=null) Destroy(hostile.gameObject);
             }
             commander.InspectObject(worker.transform); commander.Select(soldier);
             yield return CaptureLayouts(directory,"group");

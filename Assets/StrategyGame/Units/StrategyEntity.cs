@@ -102,7 +102,8 @@ namespace Engchanok.StrategyGame
                 if (Production.Ready && Production.Next.HasValue && match.TrySpawnUnit(Production.Next.Value, transform.position, out var trained)) { Production.Complete(); if (RallyPoint.HasValue) trained.AttackMove(RallyPoint.Value); }
             }
             if (kind == EntityKind.Worker) { UpdateMining(dt); return; }
-            if (kind == EntityKind.Medic) { UpdateSupport(dt, true); return; }
+            // Medics and hostile wardens both mend units and never fight, so one branch serves both sides.
+            if (match.settings.MendsUnits(kind)) { UpdateSupport(dt, true); return; }
             // An engineer only fights when there is nothing left to mend.
             if (kind == EntityKind.Engineer && !commandedMove && UpdateSupport(dt, false)) return;
             if (!IsFighter(kind) && kind != EntityKind.Turret && !IsEnemy) return;
@@ -113,7 +114,8 @@ namespace Engchanok.StrategyGame
                 if (!Agent.pathPending && (!Agent.hasPath || Agent.remainingDistance <= Agent.stoppingDistance + .2f)) commandedMove = false;
                 DetectStuck(dt); return;
             }
-            var nearby = match.NearestOpponent(this, IsEnemy ? 8 : range);
+            // A hostile sweeps its own aggro radius, never less than its weapon range, or a ranged hostile would be blind inside it.
+            var nearby = match.NearestOpponent(this, IsEnemy ? Mathf.Max(match.settings.Aggro(kind), range) : range);
             if (nearby != null && Order != UnitOrder.Attack) AttackTarget = nearby;
             if (AttackTarget == null && IsEnemy) AttackTarget = match.PriorityTarget(this);
             if (AttackTarget == null)
@@ -158,7 +160,7 @@ namespace Engchanok.StrategyGame
             if (Vector3.Distance(transform.position, patient.transform.position) > reach)
             { if (!Navigate(patient.transform.position, reach * .85f)) { AttackTarget = null; return false; } return true; }
             Stop();
-            float amount = (units ? match.settings.medicHealPerSecond : match.settings.engineerRepairPerSecond) * dt;
+            float amount = (units ? match.settings.HealPerSecond(kind) : match.settings.engineerRepairPerSecond) * dt;
             if (!units)
             {
                 // Repair is paid for in minerals, so holding a turret together competes with building the next one.
@@ -173,7 +175,8 @@ namespace Engchanok.StrategyGame
             if (patient.Health.Heal(amount) > 0 && supportTimer <= 0)
             {
                 supportTimer = .25f;
-                StrategyEffects.For(match).Emit(transform.position + Vector3.up * 1.4f, patient.transform.position + Vector3.up, units ? new Color(.45f, 1, .6f) : new Color(1, .85f, .4f), .18f, .06f);
+                // A warden's mend reads coral so the player can tell at a glance which side is being healed.
+                StrategyEffects.For(match).Emit(transform.position + Vector3.up * 1.4f, patient.transform.position + Vector3.up, IsEnemy ? new Color(1, .5f, .45f) : units ? new Color(.45f, 1, .6f) : new Color(1, .85f, .4f), .18f, .06f);
             }
             supportTimer -= dt;
             return true;
@@ -212,7 +215,9 @@ namespace Engchanok.StrategyGame
         void ShowShot(Vector3 end)
         {
             GetComponent<StrategyFeedback>().Fire();
+            // Hostiles draw a tracer only when the shot actually travels: a lancer fires from nine units, a melee hostile does not.
             if(!IsEnemy) StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f,end,new Color(.65f,1,1),.12f,.07f);
+            else if(Vector3.Distance(transform.position,end)>3) StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f,end,new Color(1,.45f,.4f),.12f,.07f);
         }
     }
 }

@@ -59,7 +59,7 @@ namespace Engchanok.StrategyGame.Tests
             Assert.IsTrue(Popup.Find("Training progress").gameObject.activeSelf);
             Action("Improved Mining").onClick.Invoke(); yield return null;
             StringAssert.Contains("Researching",Action("Improved Mining").GetComponentInChildren<Text>().text);
-            foreach(var kind in new[]{EntityKind.Worker,EntityKind.Soldier,EntityKind.Barracks,EntityKind.RangerPost,EntityKind.SupportBay,EntityKind.Turret,EntityKind.Enemy})
+            foreach(var kind in new[]{EntityKind.Worker,EntityKind.Soldier,EntityKind.Barracks,EntityKind.RangerPost,EntityKind.SupportBay,EntityKind.Turret,EntityKind.Enemy,EntityKind.Lancer,EntityKind.Juggernaut})
             {
                 var entity=kind==EntityKind.Worker?match.Entities.First(e=>e.kind==kind):match.Spawn(kind,new Vector3(10,0,-10));
                 commander.InspectObject(entity.transform); yield return null;

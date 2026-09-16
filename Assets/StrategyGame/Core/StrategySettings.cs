@@ -39,6 +39,8 @@ namespace Engchanok.StrategyGame
         public UnitProfile[] units;
         [Header("Armor and damage counters")]
         public ArmorProfile[] armorProfiles;
+        [Header("Hostile roster")]
+        public HostileProfile[] hostiles;
         public UnitProfile Profile(EntityKind kind)
         {
             if (units != null) foreach (var profile in units) if (profile != null && profile.kind == kind) return profile;
@@ -49,6 +51,11 @@ namespace Engchanok.StrategyGame
             if (armorProfiles != null) foreach (var profile in armorProfiles) if (profile != null && profile.kind == kind) return profile;
             return null;
         }
+        public HostileProfile HostileOf(EntityKind kind)
+        {
+            if (hostiles != null) foreach (var profile in hostiles) if (profile != null && profile.kind == kind) return profile;
+            return null;
+        }
         public bool IsProducer(EntityKind kind)
         {
             if (units != null) foreach (var profile in units) if (profile != null && profile.producer == kind) return true;
@@ -56,7 +63,7 @@ namespace Engchanok.StrategyGame
         }
         public ArmorClass Armor(EntityKind kind) => ArmorOf(kind)?.armor ?? ArmorClass.Structure;
         public static string ArmorName(ArmorClass armor) => armor switch { ArmorClass.Light => "Light", ArmorClass.Medium => "Medium", ArmorClass.Heavy => "Heavy", _ => "Structure" };
-        public static string Label(EntityKind kind) => kind switch { EntityKind.SupplyRelay => "Supply relay", EntityKind.RangerPost => "Ranger post", EntityKind.SupportBay => "Support bay", _ => kind.ToString() };
+        public static string Label(EntityKind kind) => kind switch { EntityKind.SupplyRelay => "Supply relay", EntityKind.RangerPost => "Ranger post", EntityKind.SupportBay => "Support bay", EntityKind.Enemy => "Standard", _ => kind.ToString() };
         // Armor now defends as well as counters: a Defender's Heavy class is what makes it a screen rather than a large health bar.
         // Structures are exempt in both directions, so headquarters and turret balance stay governed by their own numbers.
         public float DamageScale(EntityKind attacker, EntityKind target)
@@ -68,16 +75,30 @@ namespace Engchanok.StrategyGame
         public WaveComposition[] waveCompositions;
         public WaveComposition Composition(int wave) => waveCompositions != null && wave > 0 && wave <= waveCompositions.Length && waveCompositions[wave - 1] != null
             ? waveCompositions[wave - 1] : new WaveComposition(firstWaveEnemies + (wave - 1) * extraEnemiesPerWave, 0, 0);
-        public float EnemySpeed(EntityKind kind) => enemySpeed * (kind == EntityKind.Runner ? runnerSpeed : kind == EntityKind.Brute ? bruteSpeed : 1);
-        public float EnemyDamage(EntityKind kind) => enemyDamage * (kind == EntityKind.Runner ? runnerDamage : kind == EntityKind.Brute ? bruteDamage : 1);
+        // The hostile table wins where it has a row; the Runner/Brute arms remain the fallback so an unauthored table behaves as before.
+        public float EnemySpeed(EntityKind kind) => enemySpeed * (HostileOf(kind)?.speed ?? (kind == EntityKind.Runner ? runnerSpeed : kind == EntityKind.Brute ? bruteSpeed : 1));
+        public float EnemyDamage(EntityKind kind) => enemyDamage * (HostileOf(kind)?.damage ?? (kind == EntityKind.Runner ? runnerDamage : kind == EntityKind.Brute ? bruteDamage : 1));
+        public float Aggro(EntityKind kind) => HostileOf(kind)?.aggro ?? 8;
+        public HostilePriority Priority(EntityKind kind) => HostileOf(kind)?.priority
+            ?? (kind == EntityKind.Runner ? HostilePriority.SoftTargets : kind == EntityKind.Brute ? HostilePriority.Structures : HostilePriority.Headquarters);
+        // Medics mend friendly units; a hostile with a heal rate mends its own side through the same branch.
+        public float HealPerSecond(EntityKind kind) => kind == EntityKind.Medic ? medicHealPerSecond : HostileOf(kind)?.healPerSecond ?? 0;
+        public bool MendsUnits(EntityKind kind) => HealPerSecond(kind) > 0;
         public int Supply(EntityKind kind) => Profile(kind)?.supply ?? 0;
         public int SupplyProvided(EntityKind kind) => kind == EntityKind.Headquarters ? headquartersSupply : kind == EntityKind.SupplyRelay ? relaySupply : IsProducer(kind) ? producerSupply : 0;
         public float TrainSeconds(EntityKind kind) => Profile(kind)?.trainSeconds ?? 1;
         public float Damage(EntityKind kind) => Profile(kind)?.damage ?? (kind == EntityKind.Turret ? turretDamage : EnemyDamage(kind));
-        public float Range(EntityKind kind) => Profile(kind)?.range ?? (kind == EntityKind.Turret ? turretRange : enemyRange);
+        public float Range(EntityKind kind) => Profile(kind)?.range ?? HostileOf(kind)?.range ?? (kind == EntityKind.Turret ? turretRange : enemyRange);
         public float Speed(EntityKind kind) => Profile(kind)?.speed ?? EnemySpeed(kind);
         public int Cost(EntityKind kind) => Profile(kind)?.cost ?? kind switch { EntityKind.Barracks => barracksCost, EntityKind.Turret => turretCost, EntityKind.SupplyRelay => relayCost, EntityKind.RangerPost => rangerPostCost, EntityKind.SupportBay => supportBayCost, _ => 0 };
-        public float Health(EntityKind kind) => Profile(kind)?.health ?? kind switch { EntityKind.Headquarters => headquartersHealth, EntityKind.Enemy => enemyHealth, EntityKind.Runner => enemyHealth * runnerHealth, EntityKind.Brute => enemyHealth * bruteHealth, _ => buildingHealth };
-        public float Radius(EntityKind kind) => kind switch { EntityKind.Headquarters => 2.7f, EntityKind.Barracks => 2.2f, EntityKind.RangerPost => 2.2f, EntityKind.SupportBay => 2.2f, EntityKind.SupplyRelay => 1.5f, EntityKind.Turret => 1.2f, _ => .5f };
+        public float Health(EntityKind kind)
+        {
+            var profile = Profile(kind);
+            if (profile != null) return profile.health;
+            var hostile = HostileOf(kind);
+            if (hostile != null) return enemyHealth * hostile.health;
+            return kind switch { EntityKind.Headquarters => headquartersHealth, EntityKind.Enemy => enemyHealth, EntityKind.Runner => enemyHealth * runnerHealth, EntityKind.Brute => enemyHealth * bruteHealth, _ => buildingHealth };
+        }
+        public float Radius(EntityKind kind) => HostileOf(kind)?.radius ?? kind switch { EntityKind.Headquarters => 2.7f, EntityKind.Barracks => 2.2f, EntityKind.RangerPost => 2.2f, EntityKind.SupportBay => 2.2f, EntityKind.SupplyRelay => 1.5f, EntityKind.Turret => 1.2f, _ => .5f };
     }
 }

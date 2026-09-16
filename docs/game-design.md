@@ -29,7 +29,7 @@ This is the mission's central tension: every worker trained is a soldier that ca
 
 ## Armor and counters
 
-Each entity has an armor class: Light (workers, rangers, medics, engineers, runners), Medium (soldiers, standard hostiles), Heavy (defenders, brutes) or Structure. Armor both counters and defends: damage is scaled by the attacker's row against the target's class. Structures are exempt in both directions, so headquarters and turret balance stay governed by their own numbers.
+Each entity has an armor class: Light (workers, rangers, medics, engineers, runners, lancers, wardens), Medium (soldiers, standard hostiles, breakers), Heavy (defenders, brutes, juggernauts) or Structure. Armor both counters and defends: damage is scaled by the attacker's row against the target's class. Structures are exempt in both directions, so headquarters and turret balance stay governed by their own numbers.
 
 | Attacker | vs Light | vs Medium | vs Heavy |
 | --- | ---: | ---: | ---: |
@@ -41,10 +41,17 @@ Each entity has an armor class: Light (workers, rangers, medics, engineers, runn
 | Runner | 130% | 95% | 45% |
 | Standard hostile | 100% | 100% | 80% |
 | Brute | 150% | 110% | 70% |
+| Lancer | 100% | 115% | 90% |
+| Breaker | 70% | 95% | 160% |
+| Juggernaut | 120% | 120% | 85% |
+
+Wardens deal no damage at all and so have no row.
 
 No single answer covers a mixed wave. Rangers shred runners but are Light themselves, and runners hit Light hardest, so rangers need a defender screen. Defenders and turrets crush brutes, and brutes only manage 70% against Heavy, so a screen genuinely holds. Brutes flatten anything Light left exposed. The preparation preview names each group's armor class, so the next wave is intelligence the player is expected to act on. Research bonuses and armor scaling compose multiplicatively.
 
-Armor defended nothing in the previous milestone, when the player had one unit type and there was nothing for it to express. With a defender in the roster it has to work in both directions, or its Heavy class is decoration.
+Armor defended nothing two milestones ago, when the player had one unit type and there was nothing for it to express. With a defender in the roster it has to work in both directions, or its Heavy class is decoration.
+
+The hostile roster then exposed the other half of the problem: every enemy was weak against Heavy — brutes 70%, runners 45%, standard hostiles 80% — so a defender screen was the universally correct answer and no wave ever punished it. The **breaker** exists to close that hole. At 160% against Heavy it is the only hostile that beats a screen, and at 70% against Light it cannot also answer everything else: soldiers, at 115% against its Medium armor, are the intended response. Defenders stop being a default and become one choice among several.
 
 ## Commands
 - Left-click / drag selects; Shift adds to selection.
@@ -57,15 +64,42 @@ Armor defended nothing in the previous milestone, when the player had one unit t
 - Paused and finished matches reject world orders.
 
 ## Waves
-Preparation is 55 seconds; cleared-wave breaks are 32 seconds. Default standard / Runner / Brute counts are 6/0/0, 7/4/0, 9/6/2, 11/9/3 and 13/12/5. Pending spawns count as hostiles and retain their type when blocked.
+Preparation is 55 seconds; cleared-wave breaks are 32 seconds. Pending spawns count as hostiles and retain their type when blocked.
 
-Runners have 60% standard health, 160% speed and 70% damage. Brutes have 250% health, 65% speed and 160% damage. All enemies use melee attacks and engage any defender within 8 units of their route.
+Each wave is a list of (kind, count) groups, so a wave can hold any mix of the seven hostile kinds. Defaults:
 
-Beyond that reach they pursue a priority target by type, so defending headquarters alone is not sufficient:
+| Wave | Standard | Runner | Brute | Lancer | Breaker | Warden | Juggernaut |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 6 | - | - | - | - | - | - |
+| 2 | 7 | 4 | - | 2 | - | - | - |
+| 3 | 8 | 6 | 2 | 3 | 2 | - | - |
+| 4 | 9 | 8 | 3 | 4 | 3 | 1 | - |
+| 5 | 10 | 10 | 4 | 5 | 4 | 2 | 1 |
 
-- **Runners** hunt the nearest Light-armored friendly - workers, rangers, medics and engineers - falling back to structures and then headquarters. Mining lines and support units must be covered.
-- **Brutes** siege the nearest turret, barracks or supply relay, falling back to headquarters. Outlying structures need support.
-- **Standard hostiles** march on headquarters.
+Each wave introduces exactly one new kind, so the player meets a threat before facing it in numbers.
+
+## The hostile roster
+
+Hostile stats are multipliers on the standard hostile's base numbers, so retuning the base moves the whole roster together.
+
+| Hostile | Health | Damage | Speed | Range | Armor | Hunts |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| Standard | 100% | 100% | 100% | 2 | Medium | Headquarters |
+| Runner | 60% | 70% | 160% | 2 | Light | Light-armored units |
+| Brute | 250% | 160% | 65% | 2 | Heavy | Structures |
+| Lancer | 80% | 75% | 85% | **9** | Light | Structures |
+| Breaker | 130% | 110% | 100% | 2 | Medium | **Heavy-armored units** |
+| Warden | 100% | none | 90% | 8 heal | Light | Headquarters |
+| Juggernaut | 800% | 220% | 55% | 2.5 | Heavy | Structures |
+
+Hostiles engage any defender within their own aggro radius, never less than their weapon range, and beyond that pursue a priority target so defending headquarters alone is never sufficient:
+
+- **Runners** hunt the nearest Light-armored friendly - workers, rangers, medics, engineers - falling back to structures and then headquarters. Mining lines and support units must be covered.
+- **Breakers** hunt the nearest Heavy-armored friendly, falling back to structures and then headquarters. They are the answer to a player who solves every wave with defenders.
+- **Brutes, lancers and juggernauts** siege the nearest turret, barracks, ranger post, support bay or supply relay, falling back to headquarters. Outlying structures need support.
+- **Standard hostiles and wardens** march on headquarters.
+
+**Lancers** are the only hostile that shoots. At range 9 they outrange a defender screen and hit structures without walking into it, but a turret reaches 12 and still wins the duel, so turrets answer them. **Wardens** carry no weapon and mend wounded hostiles within 8 units, so a wave stops dying until the warden does; they are Light and unarmed, so focusing them is always possible. The **juggernaut** anchors the final wave: eight times a standard hostile's health, a larger footprint, and slow. It has no special ability - defenders and turrets, at 165% and 160% against Heavy, remain the answer.
 
 Headquarters holds 1200 health. Destroy all five waves to win; losing HQ immediately ends the mission. The mission is tuned so that an undefended economy loses.
 

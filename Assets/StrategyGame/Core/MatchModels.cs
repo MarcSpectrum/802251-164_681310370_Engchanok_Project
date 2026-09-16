@@ -24,9 +24,11 @@ namespace Engchanok.StrategyGame
         }
     }
     // New kinds append to the end: StrategyMatch indexes its prefab array by enum value and the scene serializes that array by index.
-    public enum EntityKind { Headquarters, Worker, Soldier, Barracks, Turret, Enemy, Runner, Brute, SupplyRelay, Ranger, Defender, Medic, Engineer, RangerPost, SupportBay }
+    public enum EntityKind { Headquarters, Worker, Soldier, Barracks, Turret, Enemy, Runner, Brute, SupplyRelay, Ranger, Defender, Medic, Engineer, RangerPost, SupportBay, Lancer, Breaker, Warden, Juggernaut }
     public enum ArmorClass { Light, Medium, Heavy, Structure }
     public enum UnitOrder { Idle, Move, Attack, AttackMove, Gather, Heal, Repair }
+    // A hostile's long-range objective. Resolved by armor class rather than by kind, so the player roster's shape decides who gets hunted.
+    public enum HostilePriority { Headquarters, SoftTargets, Structures, ArmoredTargets }
     // The full stat line for one trainable unit. Authored in DefaultStrategy; see EveryTrainableKindHasACompleteProfile.
     [Serializable]
     public sealed class UnitProfile
@@ -44,16 +46,49 @@ namespace Engchanok.StrategyGame
         public float vsLight = 1, vsMedium = 1, vsHeavy = 1;
         public float Scale(ArmorClass target) => target == ArmorClass.Light ? vsLight : target == ArmorClass.Medium ? vsMedium : target == ArmorClass.Heavy ? vsHeavy : 1;
     }
+    // The stat line for one hostile, held as multipliers on the enemy base numbers so retuning the base still moves the whole roster.
+    // An absent row falls back to the legacy Runner/Brute arms, so an empty table reproduces the pre-roster behaviour exactly.
+    [Serializable]
+    public sealed class HostileProfile
+    {
+        public EntityKind kind;
+        public float health = 1, damage = 1, speed = 1;
+        public float range = 2, radius = .5f, aggro = 8;
+        public float healPerSecond;
+        public HostilePriority priority = HostilePriority.Headquarters;
+    }
+    // One hostile kind and how many of it a wave contains.
+    [Serializable]
+    public sealed class WaveGroup
+    {
+        public EntityKind kind;
+        public int count;
+        public WaveGroup(EntityKind kind, int count) { this.kind = kind; this.count = count; }
+    }
     [Serializable]
     public sealed class WaveComposition
     {
         public int standard, runners, brutes;
+        // Groups supersede the three legacy fields when authored, so a wave can hold any mix of hostile kinds.
+        // The legacy fields remain the fallback: settings written before the hostile roster still describe their waves.
+        public WaveGroup[] groups;
         public WaveComposition(int standard, int runners, int brutes) { this.standard = standard; this.runners = runners; this.brutes = brutes; }
+        public WaveComposition(params WaveGroup[] groups) { this.groups = groups; }
+        public IEnumerable<(EntityKind kind, int count)> Groups()
+        {
+            if (groups != null && groups.Length > 0)
+            {
+                foreach (var group in groups) if (group != null && group.count > 0) yield return (group.kind, group.count);
+                yield break;
+            }
+            if (standard > 0) yield return (EntityKind.Enemy, standard);
+            if (runners > 0) yield return (EntityKind.Runner, runners);
+            if (brutes > 0) yield return (EntityKind.Brute, brutes);
+        }
         public IEnumerable<EntityKind> Enemies()
         {
-            for (int i = 0; i < Math.Max(0, standard); i++) yield return EntityKind.Enemy;
-            for (int i = 0; i < Math.Max(0, runners); i++) yield return EntityKind.Runner;
-            for (int i = 0; i < Math.Max(0, brutes); i++) yield return EntityKind.Brute;
+            foreach (var (kind, count) in Groups())
+                for (int i = 0; i < count; i++) yield return kind;
         }
     }
     public enum MatchResult { Playing, Victory, Defeat }

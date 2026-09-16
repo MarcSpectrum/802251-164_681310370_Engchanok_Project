@@ -2,7 +2,7 @@
 
 Gameplay lives under Assets/StrategyGame with separate runtime, editor, Edit Mode and Play Mode assemblies.
 
-- StrategySettings owns economy, supply, combat, enemy multipliers and wave composition tuning, plus two authored tables: UnitProfile rows for every trainable unit and ArmorProfile rows for everything that fights. Wallet, HealthModel, ProductionQueue, MineralStock, SupplyModel, UnitProfile, ArmorProfile, WaveComposition and WaveState are independent rule models.
+- StrategySettings owns economy, supply, combat and wave composition tuning, plus three authored tables: UnitProfile rows for every trainable unit, ArmorProfile rows for everything that fights, and HostileProfile rows for every enemy kind. Wallet, HealthModel, ProductionQueue, MineralStock, SupplyModel, UnitProfile, ArmorProfile, HostileProfile, WaveGroup, WaveComposition and WaveState are independent rule models.
 - StrategyMatch owns match state, spawning, placement and spending. Its pending enemy queue retains enemy kinds and participates in wave-completion checks.
 - StrategyEntity executes explicit movement, attack, attack-move and gather orders through NavMeshAgent. Barracks retain an optional rally position. Public orders are gated on a living entity and running match.
 - StrategyCommander handles selection, control groups, targeting and contextual orders. EventSystem raycasts determine UI interception instead of fixed screen bands.
@@ -27,9 +27,21 @@ Armor scales damage in both directions, structures excepted: a Defender's Heavy 
 
 Medics and engineers share one UpdateSupport branch parameterised by whether they mend units or structures, so the two can never compete for the same target. HealthModel.Heal clamps to maximum and refuses to revive the dead. Engineer repair spends minerals through a fractional debt accumulator, so a partial second of repair still bills correctly and repair stops when the wallet empties. Both reuse the existing StrategyEffects.Emit pool for their beams; no new presentation plumbing was added.
 
-StrategyMatch.PriorityTarget resolves a hostile's long-range objective by kind through NearestFriendly; runners select on Light armor rather than a hard-coded Worker check, so the roster's soft units are harassment targets automatically. StrategyEntity consults it only when it has no target, leaving the existing short-range NearestOpponent sweep authoritative for anything within reach.
+StrategyMatch.PriorityTarget resolves a hostile's long-range objective through NearestFriendly, switching on the HostileProfile's HostilePriority rather than on the kind. Each rung falls back to the next, so no hostile is ever left without a target: SoftTargets and ArmoredTargets select on Light and Heavy armor rather than naming kinds, so the player's own roster decides who gets hunted. StrategyEntity consults it only when it has no target, leaving the short-range NearestOpponent sweep authoritative for anything within reach.
 
-New EntityKind values must be appended to the end of the enum: StrategyMatch indexes its prefab array by enum value and the scene serializes that array by index. Spawn refuses a kind the array does not cover and reports it rather than throwing, so a scene saved before a rebuild fails visibly instead of crashing.
+## The hostile table
+
+HostileProfile does for enemies what UnitProfile did for the roster: it replaces the Runner/Brute ternary chains in EnemySpeed, EnemyDamage, Health and Radius with one authored row per kind. Health, damage and speed stay **multipliers on the enemy base numbers**, so retuning enemyHealth still moves the whole roster together and the legacy assertions about brutes scaling from the base keep their meaning.
+
+The table is an override, not a replacement. Every lookup consults HostileOf first and falls through to the original Runner/Brute arms, so a settings asset authored before this table behaves exactly as it did; `EmptyHostileTableFallsBackToLegacyVariants` pins that. `EveryHostileKindHasACompleteProfile` loads the shipped asset and asserts a complete row per hostile, and that no wave names a friendly kind.
+
+`StrategyMatch.IsHostileKind` is a static array lookup rather than an OR chain, mirroring the neighbouring Buildable list, because StrategyEntity.IsEnemy has no settings to consult and the predicate is load-bearing for IsUnitKind, supply exclusion, prefab generation and targeting. A new hostile is declared in that one array.
+
+Ranged hostiles needed two fixes that were harmless while every enemy was melee: the aggro sweep is the profile's radius clamped to at least the weapon range, so a lancer is not blind inside its own reach, and ShowShot draws a hostile tracer when the shot actually travels more than three units, so melee hostiles look exactly as before. NearestWounded matches on same-side rather than friendly-side, which is the whole of what a hostile warden needed to mend its own wave through the existing medic branch.
+
+WaveComposition carries a WaveGroup array of (kind, count) pairs alongside the original standard/runners/brutes fields. Groups win when authored and the three fields remain the fallback, so old settings still describe their waves and the legacy count formula is untouched. The HUD preview is built from Groups(), so a newly authored hostile appears in the next-wave line with no further edit.
+
+New EntityKind values must be appended to the end of the enum: StrategyMatch indexes its prefab array by enum value and the scene serializes that array by index. Spawn refuses a kind the array does not cover and reports it rather than throwing, so a scene saved before a rebuild fails visibly instead of crashing. A new hostile must also be added to StrategyProjectBuilder's humanoid gate, or it silently falls to the building branch and renders as architecture.
 
 ## Generation and verification
 Rebuild Prototype explicitly regenerates scenes and prefabs after offering to save editor work. Build Windows Development only builds existing scenes to Builds/Windows/OutpostStrategy.exe. Preserve all existing asset GUIDs.

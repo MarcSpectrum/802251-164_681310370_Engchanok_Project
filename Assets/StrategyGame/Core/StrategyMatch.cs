@@ -19,7 +19,10 @@ namespace Engchanok.StrategyGame
         // Soldier Weapons research covers every barracks-line trooper; Turret Weapons covers emplacements.
         public float CombatDamage(EntityKind kind) => kind == EntityKind.Turret ? settings.turretDamage * (Research.Completed(UpgradeKind.TurretWeapons) ? 1 + settings.turretResearchBonus : 1)
             : settings.Damage(kind) * (!IsHostileKind(kind) && Research.Completed(UpgradeKind.SoldierWeapons) ? 1 + settings.soldierResearchBonus : 1);
-        public static bool IsHostileKind(EntityKind kind) => kind == EntityKind.Enemy || kind == EntityKind.Runner || kind == EntityKind.Brute;
+        // One list, so a new hostile is declared in exactly one place. Static because StrategyEntity.IsEnemy has no settings to consult,
+        // and load-bearing: IsUnitKind, supply exclusion, prefab generation and targeting all derive from it.
+        public static readonly EntityKind[] Hostiles = { EntityKind.Enemy, EntityKind.Runner, EntityKind.Brute, EntityKind.Lancer, EntityKind.Breaker, EntityKind.Warden, EntityKind.Juggernaut };
+        public static bool IsHostileKind(EntityKind kind) => System.Array.IndexOf(Hostiles, kind) >= 0;
         // Research bonus and the armor counter compose multiplicatively.
         public float CombatDamage(EntityKind attacker, EntityKind target) => CombatDamage(attacker) * settings.DamageScale(attacker, target);
         public void Deliver(int amount) { Wallet.Deposit(amount); DeliveredMinerals += amount; }
@@ -194,16 +197,23 @@ namespace Engchanok.StrategyGame
         public static readonly EntityKind[] Buildable = { EntityKind.Barracks, EntityKind.RangerPost, EntityKind.SupportBay, EntityKind.Turret, EntityKind.SupplyRelay };
         public static bool IsBuildable(EntityKind kind) => System.Array.IndexOf(Buildable, kind) >= 0;
         public static bool IsDefence(EntityKind kind) => IsBuildable(kind);
-        // Runners harass anything soft, brutes siege the outer structures, standard hostiles push the headquarters.
+        // Runners harass anything soft, breakers hunt the armored screen, brutes and siege units take the structures,
+        // everything else pushes the headquarters. Each rung falls back to the next so no hostile is ever left without a target.
         public StrategyEntity PriorityTarget(StrategyEntity hunter)
         {
             if (hunter == null || !hunter.IsEnemy) return null;
-            if (hunter.kind == EntityKind.Runner) return NearestFriendly(hunter, IsSoft) ?? NearestFriendly(hunter, IsDefence) ?? Headquarters;
-            if (hunter.kind == EntityKind.Brute) return NearestFriendly(hunter, IsDefence) ?? Headquarters;
-            return Headquarters;
+            return settings.Priority(hunter.kind) switch
+            {
+                HostilePriority.SoftTargets => NearestFriendly(hunter, IsSoft) ?? NearestFriendly(hunter, IsDefence) ?? Headquarters,
+                HostilePriority.ArmoredTargets => NearestFriendly(hunter, IsArmored) ?? NearestFriendly(hunter, IsDefence) ?? Headquarters,
+                HostilePriority.Structures => NearestFriendly(hunter, IsDefence) ?? Headquarters,
+                _ => Headquarters,
+            };
         }
         // Light armor is exactly the set runners are built to punish: workers, rangers, medics and engineers.
         bool IsSoft(EntityKind kind) => settings.Armor(kind) == ArmorClass.Light;
+        // Heavy armor is the defender screen a breaker exists to break.
+        bool IsArmored(EntityKind kind) => settings.Armor(kind) == ArmorClass.Heavy;
         StrategyEntity NearestFriendly(StrategyEntity source, System.Func<EntityKind, bool> wanted)
         {
             StrategyEntity best = null; float distance = float.MaxValue;
@@ -216,12 +226,13 @@ namespace Engchanok.StrategyGame
             return best;
         }
         // Medics mend units, engineers mend structures; the two never compete for the same target.
+        // Same-side rather than friendly-side, so a hostile warden mends its own wave through this identical scan.
         public StrategyEntity NearestWounded(StrategyEntity source, float range, bool buildings)
         {
             StrategyEntity best = null; float distance = range;
             foreach (var entity in Entities)
             {
-                if (entity == null || !entity.Alive || entity.IsEnemy || entity == source) continue;
+                if (entity == null || !entity.Alive || entity.IsEnemy != source.IsEnemy || entity == source) continue;
                 if (entity.IsUnit == buildings || entity.Health.Current >= entity.Health.Maximum) continue;
                 float d = Vector3.Distance(source.transform.position, entity.transform.position) - settings.Radius(entity.kind);
                 if (d < distance) { best = entity; distance = d; }

@@ -176,6 +176,102 @@ namespace Engchanok.StrategyGame.Tests
             Assert.AreSame(match.Headquarters, match.PriorityTarget(runner));
             Assert.AreSame(match.Headquarters, match.PriorityTarget(brute));
         }
+        [UnityTest] public IEnumerator NewHostilesHuntTheirOwnObjectives()
+        {
+            match.Wallet.Deposit(2000);
+            Assert.IsTrue(match.Build(EntityKind.Turret, new Vector3(0,0,-22)));
+            Assert.IsTrue(match.TrySpawnUnit(EntityKind.Defender, new Vector3(-6,0,-14), out var defender));
+            var lancer = match.Spawn(EntityKind.Lancer, new Vector3(-25,0,25));
+            var breaker = match.Spawn(EntityKind.Breaker, new Vector3(25,0,25));
+            var warden = match.Spawn(EntityKind.Warden, new Vector3(0,0,28));
+            var juggernaut = match.Spawn(EntityKind.Juggernaut, new Vector3(10,0,28));
+            yield return null;
+            Assert.AreSame(defender, match.PriorityTarget(breaker), "A breaker must hunt the Heavy screen it exists to break.");
+            Assert.IsTrue(StrategyMatch.IsDefence(match.PriorityTarget(lancer).kind), "Lancers siege structures.");
+            Assert.IsTrue(StrategyMatch.IsDefence(match.PriorityTarget(juggernaut).kind), "Juggernauts siege structures.");
+            Assert.AreSame(match.Headquarters, match.PriorityTarget(warden), "A warden walks with the wave toward headquarters.");
+            // With no Heavy unit left the breaker falls through structures rather than standing still.
+            defender.Damage(100000);
+            yield return null;
+            Assert.IsTrue(StrategyMatch.IsDefence(match.PriorityTarget(breaker).kind));
+            Assert.Greater(match.CombatDamage(EntityKind.Breaker,EntityKind.Defender), match.CombatDamage(EntityKind.Brute,EntityKind.Defender));
+            Assert.Greater(match.settings.Radius(EntityKind.Juggernaut), match.settings.Radius(EntityKind.Enemy), "The boss must occupy more ground than a standard hostile.");
+        }
+        // The lancer is the first hostile that shoots; before it, every hostile swept a fixed eight units regardless of weapon range.
+        [UnityTest] public IEnumerator LancerStrikesFromRangeWithoutClosingToMelee()
+        {
+            match.Wallet.Deposit(2000);
+            Assert.IsTrue(match.Build(EntityKind.Turret, new Vector3(0,0,-20)));
+            var turret = match.Entities.First(e => e.kind == EntityKind.Turret);
+            match.settings.turretDamage = 0;
+            float lancerRange = match.settings.Range(EntityKind.Lancer);
+            Assert.Greater(match.settings.Aggro(EntityKind.Lancer), lancerRange);
+            var lancer = match.Spawn(EntityKind.Lancer, turret.transform.position - new Vector3(0,0,lancerRange - .5f));
+            float before = turret.Health.Current;
+            Time.timeScale = 10;
+            float deadline = Time.realtimeSinceStartup + 10;
+            while (turret.Health.Current >= before && Time.realtimeSinceStartup < deadline) yield return null;
+            Time.timeScale = 1;
+            Assert.Less(turret.Health.Current, before, "A lancer must damage a turret from its own range.");
+            float distance = Vector3.Distance(lancer.transform.position, turret.transform.position);
+            Assert.Greater(distance, match.settings.enemyRange + match.settings.Radius(EntityKind.Turret), "A lancer must not walk into melee to fire.");
+        }
+        [UnityTest] public IEnumerator WardenMendsHostilesOnlyAndNeverSpendsMinerals()
+        {
+            var warden = match.Spawn(EntityKind.Warden, new Vector3(0,0,26));
+            var hurtHostile = match.Spawn(EntityKind.Enemy, new Vector3(1,0,26));
+            var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
+            hurtHostile.Health.Damage(40);
+            worker.Health.Damage(30);
+            float hostileBefore = hurtHostile.Health.Current, workerBefore = worker.Health.Current;
+            int mineralsBefore = match.Wallet.Minerals;
+            Assert.IsTrue(match.settings.MendsUnits(EntityKind.Warden));
+            Assert.AreEqual(0, match.CombatDamage(EntityKind.Warden), "A warden is unarmed.");
+            Assert.AreSame(hurtHostile, match.NearestWounded(warden, 30, false), "A warden mends its own side.");
+            Time.timeScale = 10;
+            float deadline = Time.realtimeSinceStartup + 10;
+            while (hurtHostile.Health.Current <= hostileBefore && Time.realtimeSinceStartup < deadline) yield return null;
+            Time.timeScale = 1;
+            Assert.Greater(hurtHostile.Health.Current, hostileBefore, "A warden must heal wounded hostiles.");
+            Assert.AreEqual(workerBefore, worker.Health.Current, "A warden must never heal the player.");
+            Assert.AreEqual(mineralsBefore, match.Wallet.Minerals, "Warden healing must not bill the player's wallet.");
+        }
+        // The preview grew from three fixed groups to as many as seven. The replay's overflow detector never sees this string,
+        // because no capture lands in the wave-4 break, so the same check it uses is applied directly here.
+        [UnityTest] public IEnumerator FinalWavePreviewFitsItsLabel()
+        {
+            match.settings.waveCompositions = new[] { new WaveComposition(
+                new WaveGroup(EntityKind.Enemy,10), new WaveGroup(EntityKind.Runner,10), new WaveGroup(EntityKind.Brute,4),
+                new WaveGroup(EntityKind.Lancer,5), new WaveGroup(EntityKind.Breaker,4), new WaveGroup(EntityKind.Warden,2),
+                new WaveGroup(EntityKind.Juggernaut,1)) };
+            yield return null; yield return null;
+            var objective = Object.FindObjectsByType<UnityEngine.UI.Text>(FindObjectsSortMode.None).FirstOrDefault(t => t.text.StartsWith("Next wave:"));
+            Assert.IsNotNull(objective, "The next-wave preview must be on screen during preparation.");
+            StringAssert.Contains("1 juggernaut (Heavy)", objective.text);
+            StringAssert.Contains("10 standard (Medium)", objective.text);
+            Assert.LessOrEqual(objective.preferredHeight, objective.rectTransform.rect.height + 2, "The final-wave preview overflows its label: " + objective.text);
+        }
+        // A warden healing a juggernaut is the one way this roster could stall a match, since HostileCount is what lets a wave end.
+        // Driven by spawning the group directly: WaveState is built in Start, so retuning waveCount afterwards would not take.
+        [UnityTest] public IEnumerator WardenHealingCannotOutpaceADefendedOutpost()
+        {
+            match.settings.turretDamage = 100; match.settings.turretRange = 100; match.settings.attackInterval = .05f;
+            // Spawned rather than built: placement clearance around the nearby deposit rejects this point, and the
+            // five-wave test stands its turret up the same way for the same reason.
+            Assert.IsNotNull(match.Spawn(EntityKind.Turret, new Vector3(-7,0,-12)));
+            var boss = match.Spawn(EntityKind.Juggernaut, new Vector3(0,0,30));
+            var escortA = match.Spawn(EntityKind.Warden, new Vector3(2,0,31));
+            var escortB = match.Spawn(EntityKind.Warden, new Vector3(-2,0,31));
+            Assert.AreEqual(3, match.HostileCount);
+            Assert.Greater(boss.Health.Maximum, match.settings.Health(EntityKind.Brute), "The boss must outweigh a brute.");
+            // Modest acceleration on purpose: the scheduled waves must not start and add hostiles while this group is being killed.
+            Time.timeScale = 5;
+            float deadline = Time.realtimeSinceStartup + 20;
+            bool Dead(StrategyEntity e) => e == null || !e.Alive;
+            while (!(Dead(boss) && Dead(escortA) && Dead(escortB)) && Time.realtimeSinceStartup < deadline) yield return null;
+            Time.timeScale = 1;
+            Assert.IsTrue(Dead(boss) && Dead(escortA) && Dead(escortB), "A boss escorted by wardens must still be killable, or its wave never ends.");
+        }
         [UnityTest] public IEnumerator MixedQueueSpawnsTheRightKindsAndReservesTheirSupply()
         {
             match.Wallet.Deposit(5000);

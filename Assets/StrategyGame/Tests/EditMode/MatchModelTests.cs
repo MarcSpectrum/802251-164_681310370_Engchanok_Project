@@ -49,7 +49,7 @@ namespace Engchanok.StrategyGame.Tests
         // The shipped asset, not a fresh instance: these tables are hand-authored YAML and Unity drops mistyped keys silently.
         static StrategySettings Shipped() => UnityEditor.AssetDatabase.LoadAssetAtPath<StrategySettings>("Assets/StrategyGame/Data/DefaultStrategy.asset");
         static readonly EntityKind[] Trainable = { EntityKind.Worker, EntityKind.Soldier, EntityKind.Ranger, EntityKind.Defender, EntityKind.Medic, EntityKind.Engineer };
-        static readonly EntityKind[] Combatants = { EntityKind.Soldier, EntityKind.Ranger, EntityKind.Defender, EntityKind.Turret, EntityKind.Enemy, EntityKind.Runner, EntityKind.Brute };
+        static readonly EntityKind[] Combatants = { EntityKind.Soldier, EntityKind.Ranger, EntityKind.Defender, EntityKind.Turret, EntityKind.Enemy, EntityKind.Runner, EntityKind.Brute, EntityKind.Lancer, EntityKind.Breaker, EntityKind.Warden, EntityKind.Juggernaut };
         [Test] public void EveryTrainableKindHasACompleteProfile()
         {
             var settings=Shipped();
@@ -99,6 +99,77 @@ namespace Engchanok.StrategyGame.Tests
             Assert.AreEqual(1,settings.DamageScale(EntityKind.Soldier,EntityKind.Headquarters));
             Assert.AreEqual(1,settings.DamageScale(EntityKind.Brute,EntityKind.Turret));
             Assert.AreEqual(1,settings.DamageScale(EntityKind.Worker,EntityKind.Runner));
+        }
+        // Unity drops mistyped YAML keys without complaint, so the shipped hostile table is asserted the same way the unit table is.
+        [Test] public void EveryHostileKindHasACompleteProfile()
+        {
+            var settings=Shipped();
+            Assert.IsNotNull(settings,"DefaultStrategy.asset must load.");
+            foreach(var kind in StrategyMatch.Hostiles)
+            {
+                var hostile=settings.HostileOf(kind);
+                Assert.IsNotNull(hostile,kind+" has no hostile profile.");
+                Assert.Greater(hostile.health,0,kind+" health multiplier");
+                Assert.GreaterOrEqual(hostile.damage,0,kind+" damage multiplier");
+                Assert.Greater(hostile.speed,0,kind+" speed multiplier");
+                Assert.Greater(hostile.range,0,kind+" range");
+                Assert.Greater(hostile.radius,0,kind+" radius");
+                Assert.Greater(hostile.aggro,0,kind+" aggro radius");
+                Assert.IsNotNull(settings.ArmorOf(kind),kind+" has no armor profile.");
+                Assert.IsTrue(StrategyEntity.IsUnitKind(kind),kind+" must count as a unit or the generator builds it as a structure.");
+                Assert.IsTrue(StrategyMatch.IsHostileKind(kind),kind+" must be recognised as hostile.");
+            }
+            // A wave that names a friendly kind would spawn an enemy the player cannot fight.
+            for(int wave=1;wave<=settings.waveCount;wave++)
+                foreach(var (kind,count) in settings.Composition(wave).Groups())
+                {
+                    Assert.IsTrue(StrategyMatch.IsHostileKind(kind),"Wave "+wave+" contains non-hostile "+kind+".");
+                    Assert.Greater(count,0,"Wave "+wave+" has an empty "+kind+" group.");
+                }
+        }
+        // The hostile table is an override, not a replacement: settings authored before it must still describe their variants.
+        [Test] public void EmptyHostileTableFallsBackToLegacyVariants()
+        {
+            var settings=ScriptableObject.CreateInstance<StrategySettings>();
+            try
+            {
+                Assert.IsNull(settings.HostileOf(EntityKind.Brute));
+                Assert.AreEqual(settings.enemyHealth*settings.bruteHealth,settings.Health(EntityKind.Brute));
+                Assert.AreEqual(settings.enemySpeed*settings.runnerSpeed,settings.EnemySpeed(EntityKind.Runner));
+                Assert.AreEqual(settings.enemyDamage*settings.runnerDamage,settings.EnemyDamage(EntityKind.Runner));
+                Assert.AreEqual(HostilePriority.SoftTargets,settings.Priority(EntityKind.Runner));
+                Assert.AreEqual(HostilePriority.Structures,settings.Priority(EntityKind.Brute));
+                Assert.AreEqual(HostilePriority.Headquarters,settings.Priority(EntityKind.Enemy));
+                Assert.AreEqual(.5f,settings.Radius(EntityKind.Enemy));
+                Assert.AreEqual(8,settings.Aggro(EntityKind.Enemy));
+                Assert.IsFalse(settings.MendsUnits(EntityKind.Enemy));
+            }
+            finally { Object.DestroyImmediate(settings); }
+        }
+        [Test] public void WaveGroupsSupersedeLegacyFieldsAndDropEmptyCounts()
+        {
+            var wave=new WaveComposition(new WaveGroup(EntityKind.Lancer,2),new WaveGroup(EntityKind.Juggernaut,1)).Enemies().ToArray();
+            Assert.AreEqual(3,wave.Length); Assert.AreEqual(EntityKind.Lancer,wave.First()); Assert.AreEqual(EntityKind.Juggernaut,wave.Last());
+            var mixed=new WaveComposition(5,5,5){ groups=new[]{ new WaveGroup(EntityKind.Warden,1) } };
+            Assert.AreEqual(EntityKind.Warden,mixed.Enemies().Single(),"Authored groups must win over the legacy fields.");
+            Assert.IsEmpty(new WaveComposition(new WaveGroup(EntityKind.Lancer,0),new WaveGroup(EntityKind.Breaker,-3)).Enemies());
+        }
+        // The hole this roster closes: before the breaker, every hostile was weak against Heavy and a defender wall always worked.
+        [Test] public void BreakerPunishesTheDefenderScreenAndLancerOutrangesIt()
+        {
+            var settings=Shipped();
+            Assert.Greater(settings.DamageScale(EntityKind.Breaker,EntityKind.Defender),1,"A breaker must beat Heavy armor.");
+            Assert.Greater(settings.DamageScale(EntityKind.Breaker,EntityKind.Defender),settings.DamageScale(EntityKind.Brute,EntityKind.Defender));
+            Assert.Less(settings.DamageScale(EntityKind.Breaker,EntityKind.Worker),1,"A breaker must stay poor against Light, or it answers everything.");
+            Assert.Greater(settings.DamageScale(EntityKind.Soldier,EntityKind.Breaker),settings.DamageScale(EntityKind.Ranger,EntityKind.Breaker),"Soldiers are the intended answer to a breaker.");
+            // A lancer shoots past a defender screen, but a turret still reaches it first.
+            Assert.Greater(settings.Range(EntityKind.Lancer),settings.Range(EntityKind.Defender));
+            Assert.Less(settings.Range(EntityKind.Lancer),settings.turretRange);
+            Assert.Greater(settings.Aggro(EntityKind.Lancer),settings.Range(EntityKind.Lancer),"A ranged hostile must see at least as far as it shoots.");
+            // Exactly one hostile mends, and it is unarmed.
+            Assert.AreEqual(0,settings.Damage(EntityKind.Warden));
+            foreach(var kind in StrategyMatch.Hostiles)
+                Assert.AreEqual(kind==EntityKind.Warden,settings.MendsUnits(kind),kind+" mending is wrong.");
         }
         [Test] public void SupplyAndCostsAreLookedUpByKind()
         {

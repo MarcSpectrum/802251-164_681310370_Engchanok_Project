@@ -170,5 +170,39 @@ namespace Engchanok.StrategyGame.Tests
             camera.ResetToHeadquarters(); yield return new WaitForSecondsRealtime(1.5f);
             Assert.Less(Vector3.Distance(start,camera.view.transform.position),.01f);
         }
+        [UnityTest] public IEnumerator PopupHotkeysTriggerVisibleActionsOnly()
+        {
+            var restore=SurvivalTests.UseSyntheticInput(out _,out var keyboard);
+            try
+            {
+                commander.InspectObject(match.Headquarters.transform); yield return null;
+                StringAssert.StartsWith("[Q] Train Worker",Action("Train Worker").GetComponentInChildren<Text>().text);
+                StringAssert.StartsWith("[E] Build barracks",Action("Build barracks").GetComponentInChildren<Text>().text);
+                StringAssert.StartsWith("[B] Turret Weapons",Action("Turret Weapons").GetComponentInChildren<Text>().text);
+                CollectionAssert.Contains(Actions,"Train Worker","Hotkey hints change labels, never button names.");
+                SurvivalTests.Press(keyboard,Key.E,hud);
+                Assert.AreEqual(EntityKind.Barracks,commander.Placement);
+                commander.CancelInteractions();
+                var worker=match.Entities.First(e=>e.kind==EntityKind.Worker);
+                commander.InspectObject(worker.transform); yield return null;
+                SurvivalTests.Press(keyboard,Key.E,hud);
+                Assert.AreEqual(UnitOrder.Gather,commander.TargetingOrder);
+                commander.CancelInteractions(); yield return null; Assert.IsTrue(hud.PopupVisible);
+                SurvivalTests.Press(keyboard,Key.T,hud);
+                Assert.IsFalse(commander.Targeting,"A key beyond the visible actions does nothing."); Assert.IsNull(commander.Placement);
+                commander.InspectObject(match.Headquarters.transform); yield return null;
+                match.SetPaused(true);
+                SurvivalTests.Press(keyboard,Key.Q,hud);
+                Assert.AreEqual(0,match.Headquarters.Production.Count,"Paused matches ignore hotkeys.");
+                match.SetPaused(false);
+                commander.ClosePopup(); yield return null; Assert.IsFalse(hud.PopupVisible);
+                SurvivalTests.Press(keyboard,Key.Q,hud);
+                Assert.AreEqual(0,match.Headquarters.Production.Count,"A closed popup has no hotkeys.");
+                commander.InspectObject(match.Headquarters.transform); yield return null;
+                SurvivalTests.Press(keyboard,Key.Q,hud);
+                Assert.AreEqual(1,match.Headquarters.Production.Count);
+            }
+            finally { restore(); }
+        }
     }
 }

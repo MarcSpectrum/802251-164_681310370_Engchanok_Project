@@ -226,5 +226,81 @@ namespace Engchanok.StrategyGame.Tests
         { var w = new WaveState(5, 2, 1); Assert.IsFalse(w.Tick(1,0,true)); for(int i=1;i<=5;i++) { Assert.IsTrue(w.Tick(1,0,true)); Assert.AreEqual(i,w.Wave); w.Tick(100,1,true); Assert.AreEqual(MatchResult.Playing,w.Result); w.Tick(0,0,true); } Assert.AreEqual(MatchResult.Victory,w.Result); }
         [Test] public void HeadquartersDeathOverridesFinalWaveClear()
         { var w = new WaveState(1,0,0); w.Tick(0,0,true); w.Tick(0,0,false); Assert.AreEqual(MatchResult.Defeat,w.Result); Assert.IsFalse(w.Tick(100,0,true)); }
+        [Test] public void ClearedWavesExcludeTheWaveThatBrokeHeadquarters()
+        {
+            var w = new WaveState(3, 0, 0);
+            Assert.AreEqual(0, w.Cleared);
+            w.Tick(0, 0, true); Assert.AreEqual(0, w.Cleared, "An active wave is not cleared yet.");
+            w.Tick(0, 0, true); Assert.AreEqual(1, w.Cleared);
+            w.Tick(0, 0, true); w.Tick(0, 3, false);
+            Assert.AreEqual(MatchResult.Defeat, w.Result); Assert.AreEqual(1, w.Cleared);
+            var won = new WaveState(1, 0, 0); won.Tick(0, 0, true); won.Tick(0, 0, true);
+            Assert.AreEqual(MatchResult.Victory, won.Result); Assert.AreEqual(1, won.Cleared);
+        }
+        [Test] public void WalletTracksSpendingAndRefunds()
+        {
+            var wallet = new Wallet(200);
+            Assert.IsTrue(wallet.TrySpend(150)); Assert.IsFalse(wallet.TrySpend(100)); Assert.IsFalse(wallet.TrySpend(-5));
+            Assert.AreEqual(150, wallet.Spent, "Refused spends are not counted.");
+            wallet.Deposit(40); Assert.AreEqual(150, wallet.Spent, "Income is not spending.");
+            wallet.Refund(100); Assert.AreEqual(50, wallet.Spent); Assert.AreEqual(190, wallet.Minerals);
+            wallet.Refund(500); Assert.AreEqual(0, wallet.Spent, "A refund cannot exceed what was spent."); Assert.AreEqual(240, wallet.Minerals);
+            wallet.Refund(-10); Assert.AreEqual(240, wallet.Minerals);
+        }
+        [Test] public void MissionGradeFollowsHeadquartersAndLosses()
+        {
+            Assert.AreEqual("S", MatchStats.Grade(MatchResult.Victory, .9f, 3, 12));
+            Assert.AreEqual("A", MatchStats.Grade(MatchResult.Victory, 1, 4, 12), "Losing more than a quarter of the army costs the S.");
+            Assert.AreEqual("A", MatchStats.Grade(MatchResult.Victory, .7f, 0, 0));
+            Assert.AreEqual("S", MatchStats.Grade(MatchResult.Victory, 1, 0, 0), "A flawless turret-only defence still earns an S.");
+            Assert.AreEqual("B", MatchStats.Grade(MatchResult.Victory, .4f, 0, 10));
+            Assert.AreEqual("C", MatchStats.Grade(MatchResult.Victory, .39f, 0, 10));
+            Assert.AreEqual("D", MatchStats.Grade(MatchResult.Defeat, 1, 0, 10));
+            Assert.AreEqual("D", MatchStats.Grade(MatchResult.Playing, 1, 0, 10));
+            var stats = new MatchStats();
+            stats.RecordDeath(true, true); stats.RecordDeath(false, true); stats.RecordDeath(false, false); stats.RecordDeath(false, true);
+            Assert.AreEqual(1, stats.HostilesDefeated); Assert.AreEqual(2, stats.UnitsLost); Assert.AreEqual(1, stats.StructuresLost);
+        }
+        [Test] public void MinimapMappingRoundTripsAndClamps()
+        {
+            foreach (var point in new[] { new Vector3(0, 0, 0), new Vector3(-40, 0, -40), new Vector3(29, 3, 31), new Vector3(-18, 0, -4) })
+            {
+                var world = StrategyMinimap.MapToWorld(StrategyMinimap.WorldToMap(point, 40), 40);
+                Assert.Less(Vector2.Distance(new Vector2(point.x, point.z), new Vector2(world.x, world.z)), .001f, point.ToString());
+                Assert.AreEqual(0, world.y);
+            }
+            Assert.AreEqual(new Vector2(.5f, .5f), StrategyMinimap.WorldToMap(Vector3.zero, 40));
+            Assert.AreEqual(new Vector2(1, 0), StrategyMinimap.WorldToMap(new Vector3(500, 0, -500), 40), "Off-map points clamp to the edge.");
+            Assert.AreEqual(new Vector3(-40, 0, 40), StrategyMinimap.MapToWorld(new Vector2(-2, 3), 40));
+            Assert.Greater(StrategyMinimap.WorldToMap(new Vector3(0, 0, 10), 40).y, .5f, "World +z is up on the map.");
+        }
+        [Test] public void CameraFootprintIsClippedToTheMap()
+        {
+            var inside = new System.Collections.Generic.List<Vector2> { new(.2f,.2f), new(.8f,.2f), new(.7f,.6f), new(.3f,.6f) };
+            var copy = new System.Collections.Generic.List<Vector2>(inside);
+            StrategyMinimap.ClipToMap(copy);
+            CollectionAssert.AreEqual(inside, copy, "A footprint inside the map is unchanged.");
+            // The tilted camera's far edge lands well beyond the map on three sides.
+            var trapezoid = new System.Collections.Generic.List<Vector2> { new(.1f,.2f), new(.9f,.2f), new(1.9f,1.6f), new(-.9f,1.6f) };
+            StrategyMinimap.ClipToMap(trapezoid);
+            Assert.AreEqual(6, trapezoid.Count);
+            foreach (var p in trapezoid) { Assert.That(p.x, Is.InRange(-.0001f, 1.0001f)); Assert.That(p.y, Is.InRange(-.0001f, 1.0001f)); }
+            Assert.IsTrue(trapezoid.Exists(p => Mathf.Approximately(p.y, 1)), "The visible region still reaches the far edge of the map.");
+            Assert.IsTrue(trapezoid.Contains(new Vector2(.1f,.2f)) && trapezoid.Contains(new Vector2(.9f,.2f)), "The near edge stays where the camera looks.");
+            var outside = new System.Collections.Generic.List<Vector2> { new(2,2), new(3,2), new(3,3) };
+            StrategyMinimap.ClipToMap(outside);
+            Assert.IsEmpty(outside);
+        }
+        [Test] public void ActionHotkeysAvoidReservedKeys()
+        {
+            var keys = StrategyHud.ActionKeys;
+            Assert.AreEqual(9, keys.Length, "The headquarters popup shows nine actions.");
+            CollectionAssert.AllItemsAreUnique(keys);
+            var reserved = new[] { UnityEngine.InputSystem.Key.W, UnityEngine.InputSystem.Key.A, UnityEngine.InputSystem.Key.S, UnityEngine.InputSystem.Key.D,
+                UnityEngine.InputSystem.Key.F, UnityEngine.InputSystem.Key.C, UnityEngine.InputSystem.Key.I, UnityEngine.InputSystem.Key.Space,
+                UnityEngine.InputSystem.Key.Home, UnityEngine.InputSystem.Key.Escape }
+                .Concat(Enumerable.Range(0, 10).Select(n => UnityEngine.InputSystem.Key.Digit1 + n)); // Digit1..Digit9, then Digit0
+            CollectionAssert.IsEmpty(keys.Intersect(reserved));
+        }
     }
 }

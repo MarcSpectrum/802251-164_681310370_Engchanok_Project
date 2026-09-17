@@ -16,6 +16,8 @@ namespace Engchanok.StrategyGame
         public bool Alive => Health != null && Health.IsAlive;
         public bool Selected { get; set; }
         public int Cargo { get; private set; }
+        // Not mining, not carrying and not walking somewhere it was sent: typically a worker whose deposit ran dry.
+        public bool IsIdleWorker => kind == EntityKind.Worker && Alive && MiningTarget == null && Cargo == 0 && !commandedMove;
         public NavMeshAgent Agent { get; private set; }
         public MineralDeposit MiningTarget { get; private set; }
         public StrategyEntity AttackTarget { get; private set; }
@@ -44,7 +46,8 @@ namespace Engchanok.StrategyGame
             if (!match.Running || amount <= 0) return;
             Health.Damage(amount);
             GetComponent<StrategyFeedback>().Hit();
-            if (!Alive) { StrategyFeedback.Burst(match, transform.position + Vector3.up, IsEnemy ? Color.red : Color.cyan); Selected = false; match.Entities.Remove(this); gameObject.SetActive(false); Destroy(gameObject); }
+            if (!IsEnemy) match.ReportAttack(this);
+            if (!Alive) { match.RecordDeath(this); StrategyFeedback.Burst(match, transform.position + Vector3.up, IsEnemy ? Color.red : Color.cyan); Selected = false; match.Entities.Remove(this); gameObject.SetActive(false); Destroy(gameObject); }
         }
         public bool Move(Vector3 destination)
         {
@@ -99,7 +102,7 @@ namespace Engchanok.StrategyGame
             {
                 Production.Tick(dt);
                 // The queue owns the kind, so one producer can hold several unit types at once.
-                if (Production.Ready && Production.Next.HasValue && match.TrySpawnUnit(Production.Next.Value, transform.position, out var trained)) { Production.Complete(); if (RallyPoint.HasValue) trained.AttackMove(RallyPoint.Value); }
+                if (Production.Ready && Production.Next.HasValue && match.TrySpawnUnit(Production.Next.Value, transform.position, out var trained)) { Production.Complete(); match.RecordTrained(); if (RallyPoint.HasValue) trained.AttackMove(RallyPoint.Value); }
             }
             if (kind == EntityKind.Worker) { UpdateMining(dt); return; }
             // Medics and hostile wardens both mend units and never fight, so one branch serves both sides.

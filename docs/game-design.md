@@ -61,7 +61,14 @@ The hostile roster then exposed the other half of the problem: every enemy was w
 - Ctrl+1�9 stores friendly units; 1�9 recalls surviving members. Empty groups do nothing. Groups reset on restart.
 - WASD / arrows pan; wheel zooms. Escape / right-click cancels targeting or placement. Escape otherwise pauses.
 - Object popups include contextual training, construction, attack-move, and rally targeting; the HUD retains controls, pause and a session sound toggle.
+- Q, E, R, T, G, Z, X, V and B trigger the open popup's visible actions from top to bottom, with each key shown on its button. A hotkey is exactly a click, so every existing check applies.
+- The bottom-left minimap: left-click or drag moves the camera, right-click orders the selection (or sets a lone producer's rally point), and a click completes Move, Gather, Attack-move and rally targeting. Placement ignores it.
+- Friendly damage raises a throttled attack alert (a notice and a pulsing minimap ring); Space jumps the camera to the latest one.
+- I, or the Idle workers button, selects the next worker with nothing to mine, carry or walk to, and looks at it.
 - Paused and finished matches reject world orders.
+
+## Mission report
+Victory and defeat show a grade beside the mission's numbers: time, waves cleared, headquarters integrity, minerals mined and spent, units trained and lost, structures built and lost, and hostiles defeated. Only trained units count as trained, so the starting workers do not inflate the army. Defeat is always D. A victory is S when headquarters holds 90% or more and no more than a quarter of the trained army died, A at 70%, B at 40%, otherwise C. Headquarters integrity carries most of the grade because it is the mission's own objective. The thresholds are a first pass for playtesting, like the wave counts.
 
 ## Waves
 Preparation is 55 seconds; cleared-wave breaks are 32 seconds. Pending spawns count as hostiles and retain their type when blocked.
@@ -134,6 +141,6 @@ This polish milestone preserves the existing map, balance, five waves, research,
 
 Left-click selects and inspects an object in a contextual popup without pausing or moving the tactical camera. HQ offers worker training, instant construction (barracks, ranger post, support bay, turret, supply relay), and research; workers offer Move/Gather; troops offer Move/Attack-move; each production building offers its own roster and rally targeting. Turrets, enemies, relays, and deposits show live information only. Every popup names the subject's armor class; soldiers and turrets list their effectiveness against each class, and a hostile lists how well each defence answers it. Groups show commands applicable to their members.
 
-The popup tracks its target, clamps within the screen, and remains stationary under the pointer. Scroll the HQ action list to reach research. Relevant unavailable actions explain their requirements. Empty-ground clicks clear selection; X dismisses the popup while retaining friendly selection. Destroyed targets close their popup (or fall back to surviving group members). Targeted actions hide the popup until completion/cancellation. UI clicks never issue world orders. The top status strip and tutorial remain visible.
+The popup tracks its target, clamps within the screen, and remains stationary under the pointer. Scroll the HQ action list to reach research. Relevant unavailable actions explain their requirements. Empty-ground clicks clear selection; X dismisses the popup while retaining friendly selection. Destroyed targets close their popup (or fall back to surviving group members). Targeted actions hide the popup until completion/cancellation. UI clicks never issue world orders, with one deliberate exception: the minimap, which is the world drawn small and passes the same pause and mission-end gates. The top status strip and tutorial remain visible.
 
-WASD/arrows pan; the wheel zooms outside UI. C frames friendly selection; Home restores the HQ overview. Escape/right-click cancels targeting; Escape otherwise pauses. Manual pause and mission completion still gate commands. There is no separate close-up or I-key inspection mode.
+WASD/arrows pan; the wheel zooms outside UI. C frames friendly selection; Home restores the HQ overview. Escape/right-click cancels targeting; Escape otherwise pauses. Manual pause and mission completion still gate commands. There is no separate close-up inspection mode; I now selects idle workers.

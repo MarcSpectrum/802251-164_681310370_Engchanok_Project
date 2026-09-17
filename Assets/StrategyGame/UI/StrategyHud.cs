@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 namespace Engchanok.StrategyGame
 {
@@ -32,6 +33,12 @@ namespace Engchanok.StrategyGame
         static void Highlight(Button button, bool on) { button.image.color = on ? new Color(.18f,.48f,.45f) : new Color(.09f,.22f,.29f); }
         Image overlay, help, drag;
         readonly Dictionary<StrategyEntity, Image> healthBars = new();
+        // Positional hotkeys for the popup's visible actions, in list order. The headquarters list is exactly nine long.
+        // None collide with camera (WASD, C, Home, Space), command (F, I, digits) or pause (Escape) keys.
+        public static readonly Key[] ActionKeys = { Key.Q, Key.E, Key.R, Key.T, Key.G, Key.Z, Key.X, Key.V, Key.B };
+        public StrategyMinimap Minimap { get; private set; }
+        Button idleWorkers, restart, mainMenu;
+        Text grade, reportNames, reportValues;
         public void BuildUI()
         {
             if (canvas != null) return;
@@ -49,6 +56,12 @@ namespace Engchanok.StrategyGame
             muteLabel=mute.GetComponentInChildren<Text>();
             StrategyUI.Button(top.transform,"Pause",new Vector2(.93f,.15f),new Vector2(1,.85f),()=> { if(match.Waves.Result==MatchResult.Playing) match.SetPaused(!match.Paused); });
             notice=StrategyUI.Label(canvas.transform,"",new Vector2(.01f,.015f),new Vector2(.99f,.085f),22,StrategyUI.Accent);
+            // Built before the popup so a popup opened over the bottom-left corner draws on top and keeps its clicks.
+            Minimap=StrategyMinimap.Create(canvas.transform,match,commander.view);
+            idleWorkers=StrategyUI.Button(canvas.transform,"Idle workers",new Vector2(0,.085f),new Vector2(0,.085f),()=>commander.SelectNextIdleWorker());
+            var idleRect=(RectTransform)idleWorkers.transform; idleRect.pivot=Vector2.zero;
+            idleRect.sizeDelta=new Vector2(StrategyMinimap.Size,48); idleRect.anchoredPosition=new Vector2(16,StrategyMinimap.Size+12);
+            idleWorkers.GetComponentInChildren<Text>().fontSize=18;
             popup=StrategyUI.Panel(canvas.transform,"Object popup",Vector2.zero,Vector2.zero,StrategyUI.Ink).rectTransform;
             popup.pivot=new Vector2(0,1); popup.sizeDelta=new Vector2(440,500);
             selection=StrategyUI.Label(popup,"",new Vector2(0,1),Vector2.one,23,StrategyUI.Accent);
@@ -101,15 +114,19 @@ namespace Engchanok.StrategyGame
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false);
             help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Ink);
-            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack or gather\nF then click: attack-move soldiers\nSelect barracks + right-click: set rally point\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom\nClick objects: inspect / actions    C: focus    Home: HQ\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
+            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack, gather or set a producer's rally point\nF then click: attack-move    Q E R T G Z X V B: popup actions in order\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom    C: focus    Home: HQ\nMinimap: click to look, right-click to move    Space: last alert\nI: next idle worker    Click objects: inspect / actions\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
             drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
             overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
-            resultTitle=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.62f),new Vector2(.7f,.74f),44,StrategyUI.Accent);
-            resultBody=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.52f),new Vector2(.7f,.62f),24);
-            resume=StrategyUI.Button(overlay.transform,"Resume",new Vector2(.3f,.42f),new Vector2(.7f,.5f),()=>match.SetPaused(false));
-            StrategyUI.Button(overlay.transform,"Restart mission",new Vector2(.3f,.32f),new Vector2(.7f,.4f),()=>match.Restart());
-            StrategyUI.Button(overlay.transform,"Main menu",new Vector2(.3f,.22f),new Vector2(.7f,.3f),()=>match.MainMenu()); overlay.gameObject.SetActive(false);
+            resultTitle=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.76f),new Vector2(.7f,.86f),44,StrategyUI.Accent);
+            resultBody=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.7f),new Vector2(.7f,.76f),24);
+            // The mission report: a grade beside two aligned columns of counters. Hidden while merely paused.
+            grade=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.43f),new Vector2(.4f,.69f),110,StrategyUI.Accent); grade.alignment=TextAnchor.MiddleCenter; grade.name="Mission grade";
+            reportNames=StrategyUI.Label(overlay.transform,"",new Vector2(.41f,.43f),new Vector2(.7f,.69f),22); reportNames.name="Report names";
+            reportValues=StrategyUI.Label(overlay.transform,"",new Vector2(.41f,.43f),new Vector2(.7f,.69f),22,StrategyUI.Accent); reportValues.alignment=TextAnchor.MiddleRight; reportValues.name="Report values";
+            resume=StrategyUI.Button(overlay.transform,"Resume",new Vector2(.3f,.58f),new Vector2(.7f,.66f),()=>match.SetPaused(false));
+            restart=StrategyUI.Button(overlay.transform,"Restart mission",new Vector2(.3f,.48f),new Vector2(.7f,.56f),()=>match.Restart());
+            mainMenu=StrategyUI.Button(overlay.transform,"Main menu",new Vector2(.3f,.38f),new Vector2(.7f,.46f),()=>match.MainMenu()); overlay.gameObject.SetActive(false);
         }
         static void SetRow(RectTransform rect, float top, float height, float width)
         {
@@ -184,7 +201,6 @@ namespace Engchanok.StrategyGame
             Show(barracks,hq); Show(rangerPost,hq); Show(supportBay,hq); Show(turret,hq); Show(relay,hq);
             foreach(var button in researchButtons) Show(button,hq);
             rally.interactable=match.Running && !commander.Targeting && !commander.Placement.HasValue;
-            ActionLabel(rally,"Set rally point","Choose ground for new soldiers");
             float y=0; string key="";
             foreach(var button in visibleActions)
             {
@@ -221,14 +237,67 @@ namespace Engchanok.StrategyGame
             // Generated canvases are recreated so event listeners always bind to this runtime instance.
             if(canvas!=null) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); }
             canvas=null; BuildUI(); StrategyUI.EnsureEventSystem();
+            commander.Minimap=Minimap;
             commander.TargetingStarted+=HideForTargeting;
+        }
+        // Uses the actions laid out last frame, which is exactly what the player is looking at. Invoking the button
+        // reuses every existing check: cost, supply, queue room and research availability.
+        void HandleHotkeys()
+        {
+            var keys=Keyboard.current;
+            if(keys==null || !PopupVisible || !match.Running || commander.Targeting || commander.Placement.HasValue) return;
+            if(keys.ctrlKey.isPressed || keys.altKey.isPressed) return;
+            for(int i=0;i<visibleActions.Count && i<ActionKeys.Length;i++)
+            {
+                if(!keys[ActionKeys[i]].wasPressedThisFrame) continue;
+                var button=visibleActions[i];
+                if(button!=null && button.gameObject.activeInHierarchy && button.interactable) button.onClick.Invoke();
+                return;
+            }
+        }
+        // Runs in Update after every action label has been rewritten, so the hint is present whenever anything reads or renders
+        // the labels and never accumulates. The order comes from the last layout, the same list HandleHotkeys uses.
+        void ShowHotkeyHints()
+        {
+            for(int i=0;i<visibleActions.Count && i<ActionKeys.Length;i++)
+            {
+                var label=visibleActions[i].GetComponentInChildren<Text>();
+                if(!label.text.StartsWith("[")) label.text="["+ActionKeys[i]+"] "+label.text;
+            }
+        }
+        static string Clock(float seconds) { int total=Mathf.FloorToInt(seconds); return (total/60).ToString("00")+":"+(total%60).ToString("00"); }
+        void UpdateReport()
+        {
+            bool finished=match.Waves.Result!=MatchResult.Playing && !match.Paused;
+            grade.gameObject.SetActive(finished); reportNames.gameObject.SetActive(finished); reportValues.gameObject.SetActive(finished);
+            // Paused keeps Resume in the top slot; a finished mission moves the buttons below the report.
+            SetBand(restart,finished?.32f:.48f); SetBand(mainMenu,finished?.22f:.38f);
+            if(!finished) return;
+            var stats=match.Stats; var hq=match.Headquarters;
+            float integrity=hq!=null && hq.Alive?hq.Health.Current:0;
+            string letter=MatchStats.Grade(match.Waves.Result,integrity/Mathf.Max(1,match.settings.headquartersHealth),stats.UnitsLost,stats.UnitsTrained);
+            grade.text=letter;
+            grade.color=letter=="S" || letter=="A"?StrategyUI.Accent:letter=="B"?Color.white:new Color(1,.42f,.38f);
+            reportNames.text="Mission time\nWaves cleared\nHQ integrity\nMinerals mined\nMinerals spent\nUnits trained / lost\nStructures built / lost\nHostiles defeated";
+            reportValues.text=Clock(stats.Elapsed)+"\n"+match.Waves.Cleared+" / "+match.Waves.Total+"\n"+Mathf.CeilToInt(integrity)+" / "+match.settings.headquartersHealth
+                +"\n"+match.DeliveredMinerals+"\n"+match.Wallet.Spent+"\n"+stats.UnitsTrained+" / "+stats.UnitsLost+"\n"+stats.StructuresBuilt+" / "+stats.StructuresLost+"\n"+stats.HostilesDefeated;
+        }
+        static void SetBand(Button button, float bottom)
+        {
+            var rect=(RectTransform)button.transform;
+            rect.anchorMin=new Vector2(.3f,bottom); rect.anchorMax=new Vector2(.7f,bottom+.08f);
         }
         void HideForTargeting() { popup.gameObject.SetActive(false); }
         void OnDestroy() { if(commander!=null) commander.TargetingStarted-=HideForTargeting; }
         void Update()
         {
             if(match.Waves==null) return;
+            HandleHotkeys();
             var hq=match.Headquarters;
+            int idle=match.IdleWorkerCount;
+            idleWorkers.interactable=match.Running && idle>0;
+            idleWorkers.image.color=idle>0?new Color(.42f,.3f,.1f):new Color(.09f,.22f,.29f);
+            idleWorkers.GetComponentInChildren<Text>().text="IDLE WORKERS "+idle+" [I]";
             resources.text=$"MINERALS\n<b>{match.Wallet.Minerals}</b>";
             bool supplyFull=match.Supply!=null && match.Supply.Full;
             supply.text=$"SUPPLY\n<b>{(match.Supply!=null?match.Supply.Used:0)} / {(match.Supply!=null?match.Supply.Cap:0)}</b>";
@@ -268,6 +337,7 @@ namespace Engchanok.StrategyGame
             ActionLabel(move,"Move",move.interactable?"Choose destination":"Select units");
             ActionLabel(gather,"Gather",gather.interactable?"Choose minerals":"Select workers");
             ActionLabel(attack,"Attack-move [F]",attack.interactable?"Choose destination":"Select troops");
+            ActionLabel(rally,"Set rally point","Choose ground for new soldiers");
             for(int i=0;i<3;i++)
             {
                 var upgrade=(UpgradeKind)i;
@@ -304,6 +374,7 @@ namespace Engchanok.StrategyGame
             overlay.gameObject.SetActive(match.Paused || match.Waves.Result!=MatchResult.Playing); resume.gameObject.SetActive(match.Paused);
             resultTitle.text=match.Paused?"MISSION PAUSED":match.Waves.Result==MatchResult.Victory?"OUTPOST SECURED":"OUTPOST LOST";
             resultBody.text=match.Paused?"Orders are on hold.":match.Waves.Result==MatchResult.Victory?$"All {match.Waves.Total} waves defeated.":"Headquarters has been destroyed.";
+            UpdateReport();
             drag.gameObject.SetActive(commander.Dragging && match.Running);
             if(commander.Dragging)
             {
@@ -328,6 +399,7 @@ namespace Engchanok.StrategyGame
                 selection.text="MINERAL DEPOSIT";
                 queue.text=(mineral.Stock!=null?mineral.Stock.Remaining:0)+" minerals remaining\nAssign workers with Gather or right-click.";
             }
+            ShowHotkeyHints();
             UpdateHealthBars();
         }
         void LateUpdate()

@@ -339,6 +339,12 @@ namespace Engchanok.StrategyGame.Tests
             while (match.Waves.Result == MatchResult.Playing && Time.realtimeSinceStartup < deadline) yield return null;
             Assert.AreEqual(MatchResult.Victory, match.Waves.Result);
             Assert.AreEqual(5, match.Waves.Wave);
+            yield return null;
+            var overlay = match.GetComponent<StrategyHud>().canvas.transform.Find("Mission overlay");
+            Assert.IsTrue(overlay.Find("Mission grade").gameObject.activeSelf, "Victory shows the mission report.");
+            Assert.AreNotEqual("D", overlay.Find("Mission grade").GetComponent<UnityEngine.UI.Text>().text);
+            Assert.AreEqual("5 / 5", overlay.Find("Report values").GetComponent<UnityEngine.UI.Text>().text.Split('\n')[1]);
+            Assert.Greater(match.Stats.HostilesDefeated, 0); Assert.Greater(match.Stats.Elapsed, 0);
             var copy = match.settings; match.settings = original; Object.Destroy(copy);
             match.Restart(); yield return null; yield return null;
             match = Object.FindFirstObjectByType<StrategyMatch>();
@@ -348,6 +354,235 @@ namespace Engchanok.StrategyGame.Tests
             Assert.AreEqual(original.startingMinerals, match.Wallet.Minerals);
             Assert.AreEqual(4, match.Entities.Count);
             Assert.AreEqual(1, Time.timeScale);
+            Assert.AreEqual(0, match.Stats.HostilesDefeated, "Restart starts a fresh report.");
+            Assert.AreEqual(0, match.Wallet.Spent);
+        }
+        [UnityTest] public IEnumerator MissionReportCountsTrainingLossesAndKills()
+        {
+            Assert.IsFalse(match.Practice);
+            match.Wallet.Deposit(1000);
+            Assert.IsTrue(match.Build(EntityKind.Barracks, new Vector3(-9,0,-11)));
+            yield return new WaitForSeconds(.3f);
+            var producer = match.Entities.First(e => e.kind == EntityKind.Barracks);
+            match.settings.Profile(EntityKind.Soldier).trainSeconds = .1f;
+            Assert.IsTrue(match.Train(producer, EntityKind.Soldier));
+            float deadline = Time.realtimeSinceStartup + 5;
+            while (match.Stats.UnitsTrained < 1 && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.AreEqual(1, match.Stats.UnitsTrained);
+            Assert.AreEqual(1, match.Stats.StructuresBuilt);
+            Assert.AreEqual(match.settings.barracksCost + match.settings.Profile(EntityKind.Soldier).cost, match.Wallet.Spent);
+            match.Spawn(EntityKind.Runner, new Vector3(20,0,20)).Damage(99999);
+            match.Entities.First(e => e.kind == EntityKind.Soldier).Damage(99999);
+            match.Spawn(EntityKind.Turret, new Vector3(20,0,-20)).Damage(99999);
+            Assert.AreEqual(1, match.Stats.HostilesDefeated); Assert.AreEqual(1, match.Stats.UnitsLost); Assert.AreEqual(1, match.Stats.StructuresLost);
+            Assert.AreEqual(1, match.Stats.UnitsTrained, "Scripted spawns are not training.");
+            yield return new WaitForSeconds(.2f);
+            float elapsed = match.Stats.Elapsed; Assert.Greater(elapsed, 0);
+            var overlay = match.GetComponent<StrategyHud>().canvas.transform.Find("Mission overlay");
+            match.SetPaused(true); yield return new WaitForSecondsRealtime(.2f);
+            Assert.AreEqual(elapsed, match.Stats.Elapsed, "The mission clock stops while paused.");
+            Assert.IsFalse(overlay.Find("Mission grade").gameObject.activeSelf, "Pausing does not show the report.");
+            match.SetPaused(false);
+            match.Headquarters.Damage(99999);
+            yield return null; yield return null;
+            Assert.AreEqual(MatchResult.Defeat, match.Waves.Result);
+            Assert.IsTrue(overlay.Find("Mission grade").gameObject.activeSelf);
+            Assert.AreEqual("D", overlay.Find("Mission grade").GetComponent<UnityEngine.UI.Text>().text);
+            var values = overlay.Find("Report values").GetComponent<UnityEngine.UI.Text>().text.Split('\n');
+            Assert.AreEqual("0 / " + match.Waves.Total, values[1]);
+            Assert.AreEqual("0 / " + match.settings.headquartersHealth, values[2]);
+            Assert.AreEqual((match.settings.barracksCost + match.settings.Profile(EntityKind.Soldier).cost).ToString(), values[4]);
+            Assert.AreEqual("1 / 1", values[5], "Units trained / lost");
+            Assert.AreEqual("1 / 2", values[6], "The fallen headquarters counts as a lost structure.");
+            Assert.AreEqual("1", values[7]);
+            var names = overlay.Find("Report names").GetComponent<UnityEngine.UI.Text>();
+            Assert.AreEqual(values.Length, names.text.Split('\n').Length);
+            Assert.LessOrEqual(names.preferredHeight, names.rectTransform.rect.height + 2, "The report overflows its label.");
+        }
+        [UnityTest] public IEnumerator AttackAlertsAreThrottledAndSpaceJumpsCamera()
+        {
+            Assert.IsFalse(match.Practice); Assert.IsFalse(match.HasAlert);
+            var camera = match.GetComponent<StrategyCommander>().CameraController;
+            var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
+            var hostile = match.Spawn(EntityKind.Enemy, new Vector3(25,0,25));
+            hostile.Damage(1);
+            Assert.IsFalse(match.HasAlert, "Hostiles taking damage never raise an alert.");
+            hostile.Damage(99999);
+            worker.Damage(1);
+            Assert.IsTrue(match.HasAlert); StringAssert.Contains("under attack", match.Notice);
+            float first = match.LastAlertTime;
+            var tower = match.Spawn(EntityKind.Turret, new Vector3(-25,0,-25));
+            tower.Damage(1);
+            Assert.AreEqual(first, match.LastAlertTime, "Alerts keep a minimum gap, even for a distant fight.");
+            Time.timeScale = 4;
+            yield return new WaitForSeconds(StrategyMatch.AlertMinimumGap + .1f);
+            worker.Damage(1);
+            Assert.AreEqual(first, match.LastAlertTime, "Repeated hits in the same place are throttled.");
+            tower.Damage(1);
+            Assert.Less(Vector3.Distance(match.LastAlertPosition, tower.transform.position), .1f, "A fight elsewhere raises its own alert.");
+            float second = match.LastAlertTime;
+            yield return new WaitForSeconds(StrategyMatch.AlertMinimumGap + .1f);
+            Time.timeScale = 1;
+            worker.Damage(1);
+            Assert.AreEqual(second, match.LastAlertTime, "Two fights far apart do not alternate alerts on every hit.");
+            var restore = UseSyntheticInput(out _, out var keyboard);
+            try
+            {
+                camera.ResetToHeadquarters();
+                Press(keyboard, Key.Space, camera, "LateUpdate");
+                Assert.Less(Vector2.Distance(XZ(camera.Focus), XZ(tower.transform.position)), .1f, "Space jumps to the latest alert.");
+            }
+            finally { restore(); }
+        }
+        [UnityTest] public IEnumerator IdleWorkerFinderCyclesAndSkipsMiners()
+        {
+            var commander = match.GetComponent<StrategyCommander>();
+            var workers = match.Entities.Where(e => e.kind == EntityKind.Worker).ToArray();
+            Assert.AreEqual(3, match.IdleWorkerCount);
+            var visited = new System.Collections.Generic.HashSet<StrategyEntity>();
+            for (int i = 0; i < 3; i++) { Assert.IsTrue(commander.SelectNextIdleWorker()); Assert.AreEqual(1, commander.Selection.Count); visited.Add(commander.Selection[0]); }
+            Assert.AreEqual(3, visited.Count, "Three presses visit three different workers.");
+            Assert.IsTrue(commander.SelectNextIdleWorker()); Assert.AreSame(workers[0], commander.Selection[0], "The cycle wraps.");
+            Assert.Less(Vector2.Distance(XZ(commander.CameraController.Focus), XZ(workers[0].transform.position)), .1f);
+            workers[1].Gather(Object.FindFirstObjectByType<MineralDeposit>());
+            Assert.IsTrue(workers[2].Move(new Vector3(-8,0,-5)));
+            Assert.AreEqual(1, match.IdleWorkerCount, "Mining and walking workers are busy.");
+            for (int i = 0; i < 3; i++) { Assert.IsTrue(commander.SelectNextIdleWorker()); Assert.AreSame(workers[0], commander.Selection[0]); }
+            yield return null;
+            var label = match.GetComponent<StrategyHud>().canvas.transform.Find("Idle workers").GetComponentInChildren<UnityEngine.UI.Text>();
+            StringAssert.Contains("IDLE WORKERS 1", label.text);
+            match.SetPaused(true); commander.ClearSelection();
+            Assert.IsFalse(commander.SelectNextIdleWorker()); Assert.IsEmpty(commander.Selection);
+            match.SetPaused(false);
+            var restore = UseSyntheticInput(out _, out var keyboard);
+            try
+            {
+                Press(keyboard, Key.I, commander);
+                Assert.AreEqual(1, commander.Selection.Count); Assert.IsTrue(commander.Selection[0].IsIdleWorker);
+            }
+            finally { restore(); }
+        }
+        [UnityTest] public IEnumerator MinimapShowsEntitiesAndDrivesCameraAndOrders()
+        {
+            var commander = match.GetComponent<StrategyCommander>();
+            var camera = commander.CameraController;
+            var minimap = match.GetComponent<StrategyHud>().Minimap;
+            Assert.AreSame(minimap, commander.Minimap);
+            int deposits = Object.FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None).Length;
+            yield return null;
+            Assert.AreEqual(match.Entities.Count + deposits, minimap.BlipCount);
+            Assert.IsTrue(match.TrySpawnUnit(EntityKind.Soldier, new Vector3(-6,0,-5), out var soldier));
+            var hostile = match.Spawn(EntityKind.Enemy, new Vector3(20,0,20));
+            yield return null;
+            Assert.AreEqual(match.Entities.Count + deposits, minimap.BlipCount);
+            hostile.Damage(99999); yield return null;
+            Assert.AreEqual(match.Entities.Count + deposits, minimap.BlipCount, "Dead entities leave the minimap.");
+            var restore = UseSyntheticInput(out var mouse, out _);
+            try
+            {
+                // Pressing the minimap moves the camera without starting a selection box.
+                var look = new Vector3(20,0,15);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(look), buttons = 1 });
+                Assert.IsFalse(commander.Dragging);
+                Assert.Less(Vector2.Distance(XZ(camera.Focus), XZ(look)), .5f);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(-20,0,-20)), buttons = 1 });
+                Assert.Less(Vector2.Distance(XZ(camera.Focus), new Vector2(-20,-20)), .5f, "Dragging across the minimap tracks the pointer.");
+                SendPointer(commander, mouse, new MouseState { position = new Vector2(Screen.width - 5, Screen.height / 2f), buttons = 1 });
+                Assert.Greater(camera.Focus.x, 20, "Dragging past the edge holds the camera on the border.");
+                SendPointer(commander, mouse, new MouseState { position = new Vector2(Screen.width - 5, Screen.height / 2f) });
+                Assert.IsFalse(commander.Dragging); Assert.IsEmpty(commander.Selection);
+                // Right-clicking the minimap orders the selection.
+                commander.Select(soldier); commander.ClosePopup();
+                var goal = new Vector3(-8,0,-5);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(goal), buttons = 2 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(goal) });
+                Assert.Less(Vector3.Distance(soldier.OrderDestination, goal), .5f);
+                // Paused matches ignore the minimap entirely.
+                var focus = camera.Focus; var before = soldier.OrderDestination;
+                match.SetPaused(true);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(5,0,-5)), buttons = 2 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(5,0,-5)), buttons = 1 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(5,0,-5)) });
+                Assert.AreEqual(before, soldier.OrderDestination); Assert.AreEqual(focus, camera.Focus);
+                match.SetPaused(false);
+                // A lone producer takes a rally point from the minimap.
+                match.Wallet.Deposit(1000); Assert.IsTrue(match.Build(EntityKind.Barracks, new Vector3(-9,0,-11)));
+                yield return new WaitForSeconds(.3f);
+                var producer = match.Entities.First(e => e.kind == EntityKind.Barracks);
+                commander.ClearSelection(); commander.Select(producer); commander.ClosePopup();
+                var rally = new Vector3(0,0,-5);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(rally), buttons = 2 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(rally) });
+                Assert.IsTrue(producer.RallyPoint.HasValue); Assert.Less(Vector3.Distance(producer.RallyPoint.Value, rally), 1);
+            }
+            finally { restore(); }
+        }
+        [UnityTest] public IEnumerator MinimapCompletesTargetingButIgnoresPlacement()
+        {
+            var commander = match.GetComponent<StrategyCommander>();
+            var minimap = match.GetComponent<StrategyHud>().Minimap;
+            Assert.IsTrue(match.TrySpawnUnit(EntityKind.Soldier, new Vector3(-6,0,-5), out var soldier));
+            yield return null;
+            var restore = UseSyntheticInput(out var mouse, out _);
+            try
+            {
+                commander.Select(soldier); commander.BeginAttackMove(); Assert.IsTrue(commander.TargetingAttackMove);
+                var goal = new Vector3(-4,0,-6);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(goal), buttons = 1 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(goal) });
+                Assert.IsFalse(commander.Targeting);
+                Assert.AreEqual(UnitOrder.AttackMove, soldier.Order); Assert.Less(Vector3.Distance(soldier.OrderDestination, goal), .5f);
+                var worker = match.Entities.First(e => e.kind == EntityKind.Worker);
+                commander.ClearSelection(); commander.Select(worker); commander.BeginOrder(UnitOrder.Gather);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(0,0,10)), buttons = 1 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(0,0,10)) });
+                Assert.AreEqual(UnitOrder.Gather, commander.TargetingOrder, "Open ground is not a gather target.");
+                var deposit = Object.FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None).OrderBy(d => d.transform.position.x).First();
+                var near = deposit.transform.position + new Vector3(1,0,1);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(near), buttons = 1 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(near) });
+                Assert.IsFalse(commander.Targeting); Assert.AreSame(deposit, worker.MiningTarget);
+                commander.BeginPlacement(EntityKind.Turret);
+                var focus = commander.CameraController.Focus;
+                int turrets = match.Entities.Count(e => e.kind == EntityKind.Turret);
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(20,0,15)), buttons = 1 });
+                SendPointer(commander, mouse, new MouseState { position = minimap.ScreenPoint(new Vector3(20,0,15)) });
+                Assert.AreEqual(EntityKind.Turret, commander.Placement, "Placement needs precise ground, so the minimap ignores it.");
+                Assert.AreEqual(focus, commander.CameraController.Focus);
+                Assert.AreEqual(turrets, match.Entities.Count(e => e.kind == EntityKind.Turret));
+                commander.CancelPlacement();
+            }
+            finally { restore(); }
+        }
+        static Vector2 XZ(Vector3 value) => new(value.x, value.z);
+        // Synthetic devices for pointer and keyboard tests; the returned action restores the settings and removes the devices.
+        internal static System.Action UseSyntheticInput(out Mouse mouse, out Keyboard keyboard)
+        {
+            var background = InputSystem.settings.backgroundBehavior;
+            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+#if UNITY_EDITOR
+            var editorBehavior = InputSystem.settings.editorInputBehaviorInPlayMode;
+            InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+#endif
+            var addedMouse = InputSystem.AddDevice<Mouse>(); var addedKeyboard = InputSystem.AddDevice<Keyboard>();
+            InputSystem.EnableDevice(addedMouse); InputSystem.EnableDevice(addedKeyboard);
+            InputSystem.QueueStateEvent(addedKeyboard, new KeyboardState()); InputSystem.Update();
+            mouse = addedMouse; keyboard = addedKeyboard;
+            return () =>
+            {
+                InputSystem.settings.backgroundBehavior = background;
+#if UNITY_EDITOR
+                InputSystem.settings.editorInputBehaviorInPlayMode = editorBehavior;
+#endif
+                InputSystem.RemoveDevice(addedMouse); InputSystem.RemoveDevice(addedKeyboard);
+            };
+        }
+        // Presses and releases one key, running the named callback in between so wasPressedThisFrame is observed.
+        internal static void Press(Keyboard keyboard, Key key, Component target, string callback = "Update")
+        {
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)); InputSystem.Update();
+            target.SendMessage(callback);
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState()); InputSystem.Update();
         }
         [UnityTest] public IEnumerator HeadquartersDeathEndsMatchAndMenuLoads()
         {

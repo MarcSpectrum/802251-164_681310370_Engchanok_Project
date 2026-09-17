@@ -69,8 +69,11 @@ namespace Engchanok.StrategyGame
             commander.InspectObject(match.Headquarters.transform); yield return CaptureLayouts(directory,"build");
             commander.BeginPlacement(EntityKind.Turret); yield return CaptureLayouts(directory,"placement"); commander.CancelPlacement();
             commander.InspectObject(match.Headquarters.transform); yield return CaptureLayouts(directory,"research"); commander.ClosePopup();
+            // Captures here run at normal speed and eat into the preparation phase, so new ones belong in the fresh
+            // mission at the end; adding them here shifts the replay's whole timeline.
             Time.timeScale = normal ? 1 : 10;
             float start = Time.realtimeSinceStartup;
+            int startFrame = Time.frameCount;
             bool captured = false;
             var rallied = new HashSet<StrategyEntity>();
             while (match.Running && Time.realtimeSinceStartup - start < (normal ? 800 : 100))
@@ -121,16 +124,29 @@ namespace Engchanok.StrategyGame
                 }
                 yield return new WaitForSecondsRealtime(.3f);
             }
+            // Frames per real second across the loop, captures included. At 10x speed a lower rate means coarser simulation steps.
+            float replayFps = (Time.frameCount - startFrame) / Mathf.Max(.01f, Time.realtimeSinceStartup - start);
             yield return null;
             Capture(Path.Combine(directory, "result.png"));
             string result = match.Waves.Result.ToString();
-            File.WriteAllText(Path.Combine(directory, "result.txt"), "Result: " + result + "\nWave: " + match.Waves.Wave + "\nMinerals: " + match.Wallet.Minerals + "\nEntities: " + match.Entities.Count + "\nHQ health: " + (match.Headquarters!=null?match.Headquarters.Health.Current:0) + "\nResearch completed: " + string.Join(", ",Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Where(u=>match.Research.Completed(u))));
+            File.WriteAllText(Path.Combine(directory, "result.txt"), "Result: " + result + "\nWave: " + match.Waves.Wave + "\nMinerals: " + match.Wallet.Minerals + "\nEntities: " + match.Entities.Count + "\nHQ health: " + (match.Headquarters!=null?match.Headquarters.Health.Current:0) + "\nResearch completed: " + string.Join(", ",Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().Where(u=>match.Research.Completed(u)))
+                + "\nGrade: " + MatchStats.Grade(match.Waves.Result, match.Headquarters!=null?match.Headquarters.Health.Current/match.settings.headquartersHealth:0, match.Stats.UnitsLost, match.Stats.UnitsTrained)
+                + "\nMission time: " + Mathf.RoundToInt(match.Stats.Elapsed) + "s\nMinerals mined / spent: " + match.DeliveredMinerals + " / " + match.Wallet.Spent
+                + "\nUnits trained / lost: " + match.Stats.UnitsTrained + " / " + match.Stats.UnitsLost + "\nStructures built / lost: " + match.Stats.StructuresBuilt + " / " + match.Stats.StructuresLost
+                + "\nHostiles defeated: " + match.Stats.HostilesDefeated + "\nReplay FPS: " + Mathf.RoundToInt(replayFps));
             yield return new WaitForSecondsRealtime(.5f);
             yield return CaptureLayouts(directory,"victory");
             bool allResearch=Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>().All(u=>match.Research.Completed(u));
             // Exercise the losing overlay independently after recording the real replay result.
             SceneManager.LoadScene("Survival"); yield return null; yield return null;
-            var losingMatch=FindFirstObjectByType<StrategyMatch>(); losingMatch.Headquarters.Damage(100000);
+            var losingMatch=FindFirstObjectByType<StrategyMatch>();
+            // A one-point scratch raises the attack alert, so the minimap ring and notice are captured.
+            losingMatch.Entities.First(e => e.kind == EntityKind.Worker).Damage(1); yield return null;
+            yield return CaptureLayouts(directory,"alert");
+            // The field manual is only visible on demand, so capture it explicitly for the overflow check.
+            var manual = losingMatch.GetComponent<StrategyHud>().canvas.transform.Find("Controls").gameObject;
+            manual.SetActive(true); yield return CaptureLayouts(directory,"manual"); manual.SetActive(false);
+            losingMatch.Headquarters.Damage(100000);
             yield return null; yield return null;
             yield return CaptureLayouts(directory,"defeat");
             Application.Quit(result == "Victory" && (!research || allResearch) ? 0 : 1);

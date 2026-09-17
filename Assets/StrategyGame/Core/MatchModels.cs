@@ -105,9 +105,37 @@ namespace Engchanok.StrategyGame
     public sealed class Wallet
     {
         public int Minerals { get; private set; }
+        // Everything that leaves the wallet, for the mission report. A refund reverses a spend rather than counting as income.
+        public int Spent { get; private set; }
         public Wallet(int amount) { Minerals = Math.Max(0, amount); }
-        public bool TrySpend(int amount) { if (amount < 0 || amount > Minerals) return false; Minerals -= amount; return true; }
+        public bool TrySpend(int amount) { if (amount < 0 || amount > Minerals) return false; Minerals -= amount; Spent += amount; return true; }
         public void Deposit(int amount) { Minerals += Math.Max(0, amount); }
+        public void Refund(int amount) { amount = Math.Clamp(amount, 0, Spent); Minerals += amount; Spent -= amount; }
+    }
+    // Mission report counters. Only trained units count as trained, so the starting workers and scripted spawns are excluded.
+    public sealed class MatchStats
+    {
+        public float Elapsed { get; set; }
+        public int UnitsTrained { get; set; }
+        public int UnitsLost { get; private set; }
+        public int StructuresBuilt { get; set; }
+        public int StructuresLost { get; private set; }
+        public int HostilesDefeated { get; private set; }
+        public void RecordDeath(bool enemy, bool unit)
+        {
+            if (enemy) HostilesDefeated++;
+            else if (unit) UnitsLost++;
+            else StructuresLost++;
+        }
+        // A first-pass grade: headquarters integrity decides most of it, and an S also demands the army mostly survived.
+        public static string Grade(MatchResult result, float headquartersFraction, int unitsLost, int unitsTrained)
+        {
+            if (result != MatchResult.Victory) return "D";
+            if (headquartersFraction >= .9f && unitsLost * 4 <= Math.Max(0, unitsTrained)) return "S";
+            if (headquartersFraction >= .7f) return "A";
+            if (headquartersFraction >= .4f) return "B";
+            return "C";
+        }
     }
     public sealed class SupplyModel
     {
@@ -154,6 +182,8 @@ namespace Engchanok.StrategyGame
         public float Countdown { get; private set; }
         public bool Active { get; private set; }
         public MatchResult Result { get; private set; }
+        // A wave still active when headquarters falls was not cleared; victory clears the last one.
+        public int Cleared => Active ? Wave - 1 : Wave;
         readonly float breakSeconds;
         public WaveState(int total, float preparation, float between) { Total = Math.Max(1, total); Countdown = preparation; breakSeconds = between; }
         public bool Tick(float delta, int enemies, bool headquartersAlive)

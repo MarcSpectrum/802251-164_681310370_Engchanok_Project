@@ -57,6 +57,8 @@ namespace Engchanok.StrategyGame
             var image=r.gameObject.AddComponent<Image>(); image.color=new Color(.09f,.22f,.29f);
             var edge=Panel(r,"Action edge",new Vector2(0,.94f),Vector2.one,new Color(.15f,.85f,.85f,.35f)); edge.raycastTarget=false;
             var b=r.gameObject.AddComponent<Button>(); b.targetGraphic=image; b.onClick.AddListener(action);
+            // A clicked button must not stay selected: the default UI Submit/Navigate bindings (Enter, WASD) would re-trigger or wander from it.
+            b.onClick.AddListener(()=>{ if(EventSystem.current!=null) EventSystem.current.SetSelectedGameObject(null); });
             var colors=b.colors; colors.highlightedColor=new Color(.6f,1,1); colors.disabledColor=new Color(.4f,.4f,.4f,.65f); colors.pressedColor=new Color(.3f,.75f,.8f); colors.selectedColor=colors.normalColor; colors.fadeDuration=.1f; b.colors=colors;
             var label=Label(r,title,Vector2.zero,Vector2.one,22); label.alignment=TextAnchor.MiddleCenter; return b;
         }

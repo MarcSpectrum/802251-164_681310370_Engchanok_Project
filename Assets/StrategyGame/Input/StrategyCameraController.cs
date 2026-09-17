@@ -51,6 +51,15 @@ namespace Engchanok.StrategyGame
             panVelocity = Vector3.zero;
             desiredFocus = new Vector3(0, 0, -12); desiredHeight = 37;
         }
+        public Vector3 Focus => focus;
+        // Minimap and alert jumps move immediately so dragging across the map tracks the pointer; zoom is left alone.
+        public void JumpTo(Vector3 point)
+        {
+            if (!match.Running) return;
+            panVelocity = Vector3.zero;
+            desiredFocus = new Vector3(point.x, 0, point.z); ClampFocus();
+            focus = desiredFocus;
+        }
         void ClampFocus() { desiredFocus.x = Mathf.Clamp(desiredFocus.x, -32, 32); desiredFocus.z = Mathf.Clamp(desiredFocus.z, -32, 32); }
         void LateUpdate()
         {
@@ -61,6 +70,7 @@ namespace Engchanok.StrategyGame
             {
                 if (keys.cKey.wasPressedThisFrame) FocusSelection();
                 if (keys.homeKey.wasPressedThisFrame) ResetToHeadquarters();
+                if (keys.spaceKey.wasPressedThisFrame && match.HasAlert) JumpTo(match.LastAlertPosition);
                 float x = (keys.dKey.isPressed || keys.rightArrowKey.isPressed ? 1 : 0) - (keys.aKey.isPressed || keys.leftArrowKey.isPressed ? 1 : 0);
                 float z = (keys.wKey.isPressed || keys.upArrowKey.isPressed ? 1 : 0) - (keys.sKey.isPressed || keys.downArrowKey.isPressed ? 1 : 0);
                 float panBlend = 1 - Mathf.Exp(-Time.unscaledDeltaTime / Mathf.Max(.01f, smoothingSeconds));

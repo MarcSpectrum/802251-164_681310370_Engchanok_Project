@@ -72,7 +72,89 @@ namespace Engchanok.StrategyGame
         }
         public void CancelInteractions()
         {
-            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; TargetingRally = false; rallyProducer = null; Dragging = false;
+            CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; TargetingRally = false; rallyProducer = null; Dragging = false; minimapDragging = false;
+        }
+        // The minimap only draws and maps coordinates; every click on it is routed through this Update so input order stays deterministic.
+        public StrategyMinimap Minimap { get; set; }
+        bool minimapDragging;
+        bool MinimapPoint(out Vector3 point) { point = default; return Minimap != null && Minimap.TryWorldPoint(Pointer, out point); }
+        StrategyEntity lastIdleWorker;
+        // Cycles through idle workers in spawn order, so repeated presses visit each one before wrapping.
+        public bool SelectNextIdleWorker()
+        {
+            if (!match.Running) return false;
+            var idle = match.Entities.FindAll(e => e != null && e.IsIdleWorker);
+            if (idle.Count == 0) return false;
+            int after = lastIdleWorker != null ? match.Entities.IndexOf(lastIdleWorker) : -1;
+            var worker = idle.Find(e => match.Entities.IndexOf(e) > after) ?? idle[0];
+            lastIdleWorker = worker;
+            CancelInteractions(); ClearSelection(); Select(worker);
+            CameraController.JumpTo(worker.transform.position);
+            return true;
+        }
+        // Finishes whichever destination targeting is active. Shared by world and minimap clicks so both pass the same validation.
+        public bool CompleteTargeting(Vector3 point, MineralDeposit deposit)
+        {
+            if (!match.Running) return false;
+            if (TargetingRally)
+            {
+                if (rallyProducer == null || !rallyProducer.Alive) { CancelInteractions(); return false; }
+                if (!rallyProducer.SetRallyPoint(point)) { match.Notify("Choose reachable ground for the rally point."); return false; }
+                StrategyFeedback.Marker(match, point, Color.cyan); CancelInteractions(); return true;
+            }
+            if (TargetingOrder.HasValue)
+            {
+                if (TargetingOrder == UnitOrder.Gather && deposit == null) { match.Notify("Click a teal mineral deposit."); return false; }
+                int index = 0;
+                foreach (var unit in Selection)
+                    if (unit != null && unit.Alive && unit.IsUnit) { if (TargetingOrder == UnitOrder.Gather) unit.Gather(deposit); else { float angle = index * 2.4f, radius = Mathf.Sqrt(index++) * 1.3f; unit.Move(point + new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius); } }
+                StrategyFeedback.Marker(match, point, Color.cyan); TargetingOrder = null; return true;
+            }
+            if (TargetingAttackMove) { IssueAttackMove(point); TargetingAttackMove = false; return true; }
+            return false;
+        }
+        // Right-click semantics, shared by world and minimap: a lone producer takes a rally point, otherwise units attack, gather or move.
+        public void CommandAt(Vector3 point, StrategyEntity enemy, MineralDeposit deposit)
+        {
+            if (!match.Running) return;
+            if (Selection.Count == 1 && match.settings.IsProducer(Selection[0].kind))
+            {
+                if (Selection[0].SetRallyPoint(point)) StrategyFeedback.Marker(match, point, Color.cyan);
+                else match.Notify("Choose reachable ground for the rally point.");
+                return;
+            }
+            StrategyFeedback.Marker(match, point, Color.cyan);
+            int index = 0;
+            foreach (var unit in Selection)
+            {
+                if (!unit.IsUnit) continue;
+                if (enemy != null && enemy.IsEnemy && StrategyEntity.IsFighter(unit.kind)) unit.Attack(enemy);
+                else if (deposit != null && unit.kind == EntityKind.Worker) unit.Gather(deposit);
+                else
+                {
+                    float angle = index * 2.4f, radius = Mathf.Sqrt(index) * 1.3f;
+                    unit.Move(point + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius);
+                    index++;
+                }
+            }
+        }
+        // A world click or a minimap click. The minimap is UI, so the world raycast alone would never see it.
+        bool TryTargetPoint(out Vector3 point, out MineralDeposit deposit)
+        {
+            deposit = null;
+            if (MinimapPoint(out point)) { deposit = NearestDeposit(point, 4); return true; }
+            if (PointerOverUI || !Physics.Raycast(view.ScreenPointToRay(Pointer), out var hit, 300)) return false;
+            point = hit.point; deposit = hit.collider.GetComponentInParent<MineralDeposit>(); return true;
+        }
+        static MineralDeposit NearestDeposit(Vector3 point, float range)
+        {
+            MineralDeposit best = null;
+            foreach (var deposit in FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None))
+            {
+                var offset = deposit.transform.position - point; offset.y = 0;
+                if (offset.magnitude < range) { best = deposit; range = offset.magnitude; }
+            }
+            return best;
         }
         public Transform InspectedObject { get; private set; }
         public bool PopupOpen { get; private set; }
@@ -119,40 +201,16 @@ namespace Engchanok.StrategyGame
                 Dragging = false;
                 return;
             }
-            if (!match.Running) { Dragging = false; if (preview != null) preview.SetActive(false); return; }
+            if (!match.Running) { Dragging = false; minimapDragging = false; if (preview != null) preview.SetActive(false); return; }
             if (keys.fKey.wasPressedThisFrame) BeginAttackMove();
+            if (keys.iKey.wasPressedThisFrame) SelectNextIdleWorker();
             for (int n = 1; n <= 9; n++)
                 if (keys[(Key)((int)Key.Digit1 + n - 1)].wasPressedThisFrame)
                 { if (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed) StoreGroup(n); else RecallGroup(n); }
-            if (TargetingRally)
+            if (Targeting)
             {
-                if (rallyProducer == null || !rallyProducer.Alive || mouse.rightButton.wasPressedThisFrame) { CancelInteractions(); return; }
-                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var rallyHit, 300))
-                {
-                    if (rallyProducer.SetRallyPoint(rallyHit.point)) { StrategyFeedback.Marker(match, rallyHit.point, Color.cyan); CancelInteractions(); }
-                    else match.Notify("Choose reachable ground for the rally point.");
-                }
-                return;
-            }
-            if (TargetingOrder.HasValue)
-            {
-                if (mouse.rightButton.wasPressedThisFrame) { TargetingOrder = null; return; }
-                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var orderHit, 300))
-                {
-                    var deposit = orderHit.collider.GetComponentInParent<MineralDeposit>();
-                    if (TargetingOrder == UnitOrder.Gather && deposit == null) { match.Notify("Click a teal mineral deposit."); return; }
-                    int index = 0;
-                    foreach (var unit in Selection)
-                        if (unit != null && unit.Alive && unit.IsUnit) { if (TargetingOrder == UnitOrder.Gather) unit.Gather(deposit); else { float angle = index * 2.4f, radius = Mathf.Sqrt(index++) * 1.3f; unit.Move(orderHit.point + new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius); } }
-                    StrategyFeedback.Marker(match, orderHit.point, Color.cyan); TargetingOrder = null;
-                }
-                return;
-            }
-            if (TargetingAttackMove)
-            {
-                if (mouse.rightButton.wasPressedThisFrame) { TargetingAttackMove = false; return; }
-                if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var targetHit, 300))
-                { IssueAttackMove(targetHit.point); TargetingAttackMove = false; }
+                if (mouse.rightButton.wasPressedThisFrame || (TargetingRally && (rallyProducer == null || !rallyProducer.Alive))) { CancelInteractions(); return; }
+                if (mouse.leftButton.wasPressedThisFrame && TryTargetPoint(out var targetPoint, out var targetDeposit)) CompleteTargeting(targetPoint, targetDeposit);
                 return;
             }
             if (Placement.HasValue)
@@ -163,7 +221,13 @@ namespace Engchanok.StrategyGame
                 if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI && PlacementValid && match.Build(Placement.Value, PlacementPoint)) CancelPlacement();
                 return;
             }
-            if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI) { DragStart = Pointer; Dragging = true; }
+            if (minimapDragging)
+            {
+                if (!mouse.leftButton.isPressed) minimapDragging = false;
+                else if (Minimap != null) CameraController.JumpTo(Minimap.ClampedWorldPoint(Pointer));
+            }
+            if (mouse.leftButton.wasPressedThisFrame && MinimapPoint(out var pressed)) { minimapDragging = true; Dragging = false; CameraController.JumpTo(pressed); }
+            else if (mouse.leftButton.wasPressedThisFrame && !PointerOverUI) { DragStart = Pointer; Dragging = true; }
             if (mouse.leftButton.wasReleasedThisFrame && Dragging)
             {
                 Dragging = false;
@@ -185,30 +249,11 @@ namespace Engchanok.StrategyGame
                     else if (!keys.leftShiftKey.isPressed && !keys.rightShiftKey.isPressed) InspectObject(hit.collider.transform);
                 }
             }
-            if (mouse.rightButton.wasPressedThisFrame && !PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var commandHit, 300))
+            if (mouse.rightButton.wasPressedThisFrame)
             {
-                var enemy = commandHit.collider.GetComponentInParent<StrategyEntity>();
-                var deposit = commandHit.collider.GetComponentInParent<MineralDeposit>();
-                if (Selection.Count == 1 && match.settings.IsProducer(Selection[0].kind))
-                {
-                    if (Selection[0].SetRallyPoint(commandHit.point)) StrategyFeedback.Marker(match, commandHit.point, Color.cyan);
-                    else match.Notify("Choose reachable ground for the rally point.");
-                    return;
-                }
-                StrategyFeedback.Marker(match, commandHit.point, Color.cyan);
-                int index = 0;
-                foreach (var unit in Selection)
-                {
-                    if (!unit.IsUnit) continue;
-                    if (enemy != null && enemy.IsEnemy && StrategyEntity.IsFighter(unit.kind)) unit.Attack(enemy);
-                    else if (deposit != null && unit.kind == EntityKind.Worker) unit.Gather(deposit);
-                    else
-                    {
-                        float angle = index * 2.4f, radius = Mathf.Sqrt(index) * 1.3f;
-                        unit.Move(commandHit.point + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius);
-                        index++;
-                    }
-                }
+                if (MinimapPoint(out var mapTarget)) CommandAt(mapTarget, null, null);
+                else if (!PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var commandHit, 300))
+                    CommandAt(commandHit.point, commandHit.collider.GetComponentInParent<StrategyEntity>(), commandHit.collider.GetComponentInParent<MineralDeposit>());
             }
         }
         public void ClearSelection() { foreach (var e in Selection) if (e != null) e.Selected = false; Selection.Clear(); InspectedObject = null; PopupOpen = false; }

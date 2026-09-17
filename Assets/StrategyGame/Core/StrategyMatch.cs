@@ -67,10 +67,42 @@ namespace Engchanok.StrategyGame
         float noticeTime;
         readonly Queue<EntityKind> pendingEnemies = new();
         public int HostileCount => pendingEnemies.Count + Entities.FindAll(e => e != null && e.IsEnemy && e.Alive).Count;
+        public int IdleWorkerCount => Entities.FindAll(e => e != null && e.IsIdleWorker).Count;
+        public MatchStats Stats { get; private set; }
+        // The most recent friendly position under fire, for the minimap ring and the Space shortcut.
+        public Vector3 LastAlertPosition { get; private set; }
+        public float LastAlertTime { get; private set; } = -999;
+        public bool HasAlert => LastAlertTime > -999;
+        public const float AlertCooldown = 8, AlertSeparation = 12, AlertMinimumGap = 2;
+        readonly List<(Vector3 position, float time)> alertSites = new();
+        // Throttled so a long fight produces one notice rather than one per hit. Every recent site is remembered, not just the
+        // last one, or two simultaneous fights far apart would alternate and alert on nearly every hit; the minimum gap caps the rest.
+        public void ReportAttack(StrategyEntity victim)
+        {
+            if (Practice || victim == null || victim.IsEnemy) return;
+            float now = Time.time;
+            if (now - LastAlertTime < AlertMinimumGap) return;
+            Vector3 position = victim.transform.position;
+            for (int i = alertSites.Count - 1; i >= 0; i--)
+            {
+                if (now - alertSites[i].time >= AlertCooldown) alertSites.RemoveAt(i);
+                else if (Vector3.Distance(position, alertSites[i].position) <= AlertSeparation) return;
+            }
+            alertSites.Add((position, now));
+            LastAlertPosition = position; LastAlertTime = now;
+            Notify(StrategySettings.Label(victim.kind) + " under attack. [Space] to view.");
+            StrategyFeedback.Sound(this, 330, .18f);
+        }
+        public void RecordDeath(StrategyEntity entity)
+        {
+            if (entity != null && Stats != null && !Practice) Stats.RecordDeath(entity.IsEnemy, entity.IsUnit);
+        }
+        public void RecordTrained() { if (Stats != null && !Practice) Stats.UnitsTrained++; }
         void Start()
         {
             Time.timeScale = 1; Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
             Practice = StrategySession.PracticeRequested; StrategySession.PracticeRequested = false;
+            Stats = new MatchStats();
             Research = new ResearchState();
             Wallet = new Wallet(Practice ? 1000 : settings.startingMinerals);
             Supply = new SupplyModel(settings.supplyLimit);
@@ -102,6 +134,7 @@ namespace Engchanok.StrategyGame
             if (Research.Tick(Time.deltaTime)) { Notify("Research complete. Your forces are upgraded."); StrategyFeedback.Sound(this, 1050, .28f); }
             if (noticeTime > 0) { noticeTime -= Time.deltaTime; if (noticeTime <= 0) Notice = ""; }
             if (Practice) { UpdateTutorial(); return; }
+            Stats.Elapsed += Time.deltaTime;
             if (pendingEnemies.Count > 0)
                 for (int i = 0; i < SpawnPoints.Length && pendingEnemies.Count > 0; i++)
                     if (TrySpawnUnit(pendingEnemies.Peek(), SpawnPoints[i], out _)) pendingEnemies.Dequeue();
@@ -191,7 +224,8 @@ namespace Engchanok.StrategyGame
             if (!Running) return false;
             if (!CanPlace(kind, point, out var reason)) { Notify(reason); return false; }
             if (!Wallet.TrySpend(settings.Cost(kind))) return false;
-            if (Spawn(kind, point) == null) { Wallet.Deposit(settings.Cost(kind)); return false; }
+            if (Spawn(kind, point) == null) { Wallet.Refund(settings.Cost(kind)); return false; }
+            if (!Practice) Stats.StructuresBuilt++;
             StrategyFeedback.Construct(this, point); Notify(StrategySettings.Label(kind) + " ready."); RecountSupply(); return true;
         }
         public static readonly EntityKind[] Buildable = { EntityKind.Barracks, EntityKind.RangerPost, EntityKind.SupportBay, EntityKind.Turret, EntityKind.SupplyRelay };

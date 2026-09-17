@@ -74,10 +74,15 @@ Minerals are finite: four deposits of 1400, roughly one mission's spending. Depo
 | Move / Gather buttons | Choose a command, then click its world target |
 | F then click / Attack-move button | Engage enemies along the selected troops' route |
 | Production building + right click | Set a rally point for new units |
+| Q E R T G Z X V B | Trigger the open popup's actions, top to bottom (the key is shown on each button) |
 | Ctrl+1-9 / 1-9 | Store / recall a unit group |
 | WASD / arrows | Pan camera |
 | Mouse wheel | Zoom |
 | C / Home | Focus selected / return to HQ overview |
+| Minimap left click / drag | Move the camera there |
+| Minimap right click | Move the selection there, or set a selected producer's rally point |
+| Space | Jump the camera to the latest attack alert |
+| I / Idle workers button | Select the next idle worker and look at it |
 | Escape / right click while targeting | Cancel command targeting or construction |
 | Escape otherwise | Pause / resume |
 
@@ -93,6 +98,18 @@ Structures must fit inside the headquarters perimeter, leave mineral deposits ac
 | Turret Weapons | 150 | 25s | +25% turret damage |
 
 One project runs at a time, independently of training. Research costs minerals immediately and cannot be canceled. Each project is available once per mission; benefits apply to existing and future entities. Restarting clears all research. Mining benefits apply to the next extraction, preserving cargo already carried.
+
+## Minimap, hotkeys and mission report
+
+**Minimap.** The bottom-left map shows the whole battlefield: cyan units, lighter structures, amber workers, coral hostiles, teal deposits (grey once empty), the three approach lanes, and a white frame for what the camera sees. Selected units turn white. Left-click or drag to look somewhere; right-click to send the selection there. While choosing a Move, Gather, Attack-move or rally destination, a minimap click completes it (Gather picks the deposit under the click). Placement ignores the minimap because a building needs precise ground. A paused or finished mission ignores it like any other order.
+
+**Attack alerts.** When anything of yours takes damage, the notice line names it and the minimap pulses a coral ring there for four seconds. Each place alerts at most once every eight seconds; a fight more than 12 units from every recent alert gets its own, and any two alerts are at least two seconds apart. Press **Space** to jump the camera to the latest alert.
+
+**Action hotkeys.** The popup's visible actions take Q, E, R, T, G, Z, X, V and B from top to bottom, and each button shows its key. On headquarters that is Q train worker, E barracks, R ranger post, T support bay, G turret, Z supply relay, then X, V, B for the three research projects. A hotkey does exactly what clicking its button does, so the same cost, supply and queue checks apply, and it does nothing while paused, targeting or with the popup closed. F still works for attack-move.
+
+**Idle workers.** Deposits run dry, and a worker with nothing to mine just stands still. The **Idle workers** button above the minimap counts them and turns amber when any exist; it or **I** selects the next one in turn and moves the camera to it.
+
+**Mission report.** Victory and defeat show a grade and the mission's numbers: time, waves cleared, headquarters integrity, minerals mined and spent, units trained and lost, structures built and lost, and hostiles defeated. Only trained units count as trained. The grade is D for any defeat. For a victory it is S at 90%+ headquarters with no more than a quarter of the trained army lost, then A at 70%+, B at 40%+, otherwise C. These thresholds are a first pass.
 
 ## Generate, test, build
 - **Strategy Game > Rebuild Prototype** regenerates both scenes and prefabs. Save editor work first; existing tuning and asset GUIDs are preserved.

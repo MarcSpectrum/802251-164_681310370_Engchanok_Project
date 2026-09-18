@@ -73,6 +73,14 @@ namespace Engchanok.StrategyGame
             return ArmorOf(attacker)?.Scale(armor) ?? 1;
         }
         public WaveComposition[] waveCompositions;
+        [Header("Commander powers")]
+        public PowerProfile[] powers;
+        public PowerProfile PowerOf(PowerKind kind)
+        {
+            if (powers != null) foreach (var profile in powers) if (profile != null && profile.kind == kind) return profile;
+            return null;
+        }
+        public static string PowerName(PowerKind kind) => kind switch { PowerKind.Airstrike => "Airstrike", PowerKind.Barrage => "Artillery barrage", PowerKind.CryoField => "Cryo field", _ => "Repair field" };
         public WaveComposition Composition(int wave) => waveCompositions != null && wave > 0 && wave <= waveCompositions.Length && waveCompositions[wave - 1] != null
             ? waveCompositions[wave - 1] : new WaveComposition(firstWaveEnemies + (wave - 1) * extraEnemiesPerWave, 0, 0);
         // The hostile table wins where it has a row; the Runner/Brute arms remain the fallback so an unauthored table behaves as before.

@@ -65,7 +65,22 @@ The hostile roster then exposed the other half of the problem: every enemy was w
 - The bottom-left minimap: left-click or drag moves the camera, right-click orders the selection (or sets a lone producer's rally point), and a click completes Move, Gather, Attack-move and rally targeting. Placement ignores it.
 - Friendly damage raises a throttled attack alert (a notice and a pulsing minimap ring); Space jumps the camera to the latest one.
 - I, or the Idle workers button, selects the next worker with nothing to mine, carry or walk to, and looks at it.
+- F1-F4, or the power bar, aim a commander power; a click on the ground or the minimap calls it in. Escape, right-click or the same key again cancels at no cost.
 - Paused and finished matches reject world orders.
+
+## Commander powers
+Four powers are called onto a point rather than issued to a unit, so they need no selection. Each is bought with minerals and then recharges; the price is the point, because every power competes with the next turret or relay in the same finite mineral budget.
+
+| Power | Key | Minerals | Recharge | Lands after | Area | Effect |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| Airstrike | F1 | 125 | 60s | 1.5-1.9s | 12-unit line | Five bombs along the jet's path, 70 damage each within 3 units |
+| Artillery barrage | F2 | 100 | 45s | 1-5s | radius 8 | Ten shells at random points, 45 damage each within 2.2 units |
+| Cryo field | F3 | 75 | 40s | 0.5s | radius 7 | Hostiles inside move, attack and mend at 35% pace for 6s |
+| Repair field | F4 | 100 | 50s | 0.5s | radius 7 | Friendly units and structures regain 20 health per second for 8s |
+
+Strikes hurt hostiles only and ignore armor, so they are a flat answer rather than another counter row; there is no friendly fire, so calling one on top of your own defender screen is always safe. The delay is the skill: an airstrike flies in from the headquarters side and lays its stick south to north, so it rewards leading a column on an approach lane, and the barrage rewards a clump that stays put. Cryo buys time rather than damage, which is what a runner pack or a juggernaut needs. Repair field is the only heal that touches structures for free, but it costs as much as a turret. A warden, unarmed, fragile and mending the rest of its wave, is the canonical airstrike target.
+
+The aiming preview and the landed zone share one outline: a stadium along the airstrike's flight line, a circle for the others, coral for anything that explodes, ice for cryo and green for repair. Powers pause with the mission, stop and clear when it ends, and work in practice mode. The values above are a first pass and live in DefaultStrategy's `powers` table.
 
 ## Mission report
 Victory and defeat show a grade beside the mission's numbers: time, waves cleared, headquarters integrity, minerals mined and spent, units trained and lost, structures built and lost, and hostiles defeated. Only trained units count as trained, so the starting workers do not inflate the army. Defeat is always D. A victory is S when headquarters holds 90% or more and no more than a quarter of the trained army died, A at 70%, B at 40%, otherwise C. Headquarters integrity carries most of the grade because it is the mission's own objective. The thresholds are a first pass for playtesting, like the wave counts.
@@ -106,7 +121,7 @@ Hostiles engage any defender within their own aggro radius, never less than thei
 - **Brutes, lancers and juggernauts** siege the nearest turret, barracks, ranger post, support bay or supply relay, falling back to headquarters. Outlying structures need support.
 - **Standard hostiles and wardens** march on headquarters.
 
-**Lancers** are the only hostile that shoots. At range 9 they outrange a defender screen and hit structures without walking into it, but a turret reaches 12 and still wins the duel, so turrets answer them. **Wardens** carry no weapon and mend wounded hostiles within 8 units, so a wave stops dying until the warden does; they are Light and unarmed, so focusing them is always possible. The **juggernaut** anchors the final wave: eight times a standard hostile's health, a larger footprint, and slow. It has no special ability - defenders and turrets, at 165% and 160% against Heavy, remain the answer.
+**Lancers** are the only hostile that shoots. At range 9 they outrange a defender screen and hit structures without walking into it, but a turret reaches 12 and still wins the duel, so turrets answer them. **Wardens** carry no weapon and mend wounded hostiles within 8 units, so a wave stops dying until the warden does; they are Light and unarmed, so focusing them is always possible. A warden with nobody to mend keeps marching on headquarters and stops at its mending range; earlier builds left it standing at its spawn point, which both kept it out of the fight and held its wave open forever. The **juggernaut** anchors the final wave: eight times a standard hostile's health, a larger footprint, and slow. It has no special ability - defenders and turrets, at 165% and 160% against Heavy, remain the answer.
 
 Headquarters holds 1200 health. Destroy all five waves to win; losing HQ immediately ends the mission. The mission is tuned so that an undefended economy loses.
 

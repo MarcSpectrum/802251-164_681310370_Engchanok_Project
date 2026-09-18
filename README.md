@@ -83,6 +83,7 @@ Minerals are finite: four deposits of 1400, roughly one mission's spending. Depo
 | Minimap right click | Move the selection there, or set a selected producer's rally point |
 | Space | Jump the camera to the latest attack alert |
 | I / Idle workers button | Select the next idle worker and look at it |
+| F1 F2 F3 F4 / power bar | Aim the airstrike, artillery barrage, cryo field or repair field, then click ground or the minimap (the same key again puts it away) |
 | Escape / right click while targeting | Cancel command targeting or construction |
 | Escape otherwise | Pause / resume |
 
@@ -110,6 +111,19 @@ One project runs at a time, independently of training. Research costs minerals i
 **Idle workers.** Deposits run dry, and a worker with nothing to mine just stands still. The **Idle workers** button above the minimap counts them and turns amber when any exist; it or **I** selects the next one in turn and moves the camera to it.
 
 **Mission report.** Victory and defeat show a grade and the mission's numbers: time, waves cleared, headquarters integrity, minerals mined and spent, units trained and lost, structures built and lost, and hostiles defeated. Only trained units count as trained. The grade is D for any defeat. For a victory it is S at 90%+ headquarters with no more than a quarter of the trained army lost, then A at 70%+, B at 40%+, otherwise C. These thresholds are a first pass.
+
+## Commander powers
+
+The bottom-right bar calls in support from off the map. Each power costs minerals and then recharges, so an airstrike is always a turret you did not build. Press its key or click its button, then click the ground (or the minimap) where it should land; a preview outlines the area it will cover. Escape, right-click or the same key cancels without spending anything.
+
+| Power | Key | Minerals | Recharge | What it does |
+| --- | --- | ---: | ---: | --- |
+| Airstrike | F1 | 125 | 60s | A jet flies in from the headquarters side and lays five bombs along a line through the target, 70 damage each |
+| Artillery barrage | F2 | 100 | 45s | Ten shells land at random inside a wide circle over four seconds, 45 damage each |
+| Cryo field | F3 | 75 | 40s | Hostiles inside move, attack and mend at 35% speed for six seconds |
+| Repair field | F4 | 100 | 50s | Your units and structures inside regain 20 health per second for eight seconds |
+
+Strikes hurt hostiles only, never your own troops or buildings, and ignore armor. A strike lands a moment after it is called, so lead fast targets. Kills count in the mission report. Powers pause with the mission and stop when it ends, and practice mode lets you try them with nothing shooting back. Wardens are the classic airstrike target: unarmed, fragile, and keeping the rest of the wave alive.
 
 ## Generate, test, build
 - **Strategy Game > Rebuild Prototype** regenerates both scenes and prefabs. Save editor work first; existing tuning and asset GUIDs are preserved.

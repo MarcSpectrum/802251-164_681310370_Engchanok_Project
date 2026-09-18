@@ -790,7 +790,7 @@ namespace Engchanok.StrategyGame.Tests
                 InputSystem.settings.backgroundBehavior=background; InputSystem.RemoveDevice(mouse); InputSystem.RemoveDevice(keyboard);
             }
         }
-        static void SendPointer(StrategyCommander commander, Mouse mouse, MouseState state)
+        internal static void SendPointer(StrategyCommander commander, Mouse mouse, MouseState state)
         {
             // Pump synthetic events explicitly; the batch editor does not reliably
             // advance device events before UnityTest coroutine continuations.

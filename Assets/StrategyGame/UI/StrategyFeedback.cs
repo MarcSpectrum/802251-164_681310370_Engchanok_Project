@@ -5,6 +5,7 @@ namespace Engchanok.StrategyGame
     public sealed class StrategyFeedback : MonoBehaviour
     {
         public static bool Muted;
+        static readonly Color Frost = new(.6f, .85f, 1);
         static readonly Dictionary<(int, int), AudioClip> clips = new();
         StrategyEntity entity;
         StrategyMatch match;
@@ -36,9 +37,11 @@ namespace Engchanok.StrategyGame
             if (entity.RallyPoint.HasValue) rally.transform.position = entity.RallyPoint.Value;
             if (!match.Running) return;
             flash = Mathf.Max(0, flash - Time.deltaTime);
+            // A hit flash wins over the cryo tint, so a frozen hostile still shows every shot that lands.
             foreach (var body in bodies)
             {
                 if (flash > 0) { tint.SetColor("_BaseColor", Color.white); body.SetPropertyBlock(tint); }
+                else if (entity.Chilled) { tint.SetColor("_BaseColor", Frost); body.SetPropertyBlock(tint); }
                 else body.SetPropertyBlock(null);
             }
         }

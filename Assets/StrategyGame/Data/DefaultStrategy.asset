@@ -314,3 +314,40 @@ MonoBehaviour:
       count: 2
     - kind: 18
       count: 1
+  powers:
+  - kind: 0
+    cost: 125
+    cooldown: 60
+    delay: 1.5
+    radius: 6
+    blast: 3
+    amount: 70
+    duration: 0
+    strikes: 5
+  - kind: 1
+    cost: 100
+    cooldown: 45
+    delay: 1
+    radius: 8
+    blast: 2.2
+    amount: 45
+    duration: 4
+    strikes: 10
+  - kind: 2
+    cost: 75
+    cooldown: 40
+    delay: 0.5
+    radius: 7
+    blast: 0
+    amount: 0.35
+    duration: 6
+    strikes: 0
+  - kind: 3
+    cost: 100
+    cooldown: 50
+    delay: 0.5
+    radius: 7
+    blast: 0
+    amount: 20
+    duration: 8
+    strikes: 0

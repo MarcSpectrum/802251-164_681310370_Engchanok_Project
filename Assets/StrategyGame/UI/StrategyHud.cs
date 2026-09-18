@@ -36,6 +36,14 @@ namespace Engchanok.StrategyGame
         // Positional hotkeys for the popup's visible actions, in list order. The headquarters list is exactly nine long.
         // None collide with camera (WASD, C, Home, Space), command (F, I, digits) or pause (Escape) keys.
         public static readonly Key[] ActionKeys = { Key.Q, Key.E, Key.R, Key.T, Key.G, Key.Z, Key.X, Key.V, Key.B };
+        // Commander powers in PowerKind order. Function keys sit clear of every letter, digit and camera binding.
+        public static readonly Key[] PowerKeys = { Key.F1, Key.F2, Key.F3, Key.F4 };
+        const float PowerWidth = 220, PowerHeight = 96;
+        readonly Button[] powerButtons = new Button[PowerKeys.Length];
+        readonly Image[] powerProgress = new Image[PowerKeys.Length];
+        public Button PowerButton(PowerKind kind) => powerButtons[(int)kind];
+        // Short enough for one line at the bar's width; notices use the full StrategySettings.PowerName.
+        static string PowerTitle(PowerKind kind) => kind switch { PowerKind.Airstrike => "AIRSTRIKE", PowerKind.Barrage => "BARRAGE", PowerKind.CryoField => "CRYO FIELD", _ => "REPAIR FIELD" };
         public StrategyMinimap Minimap { get; private set; }
         Button idleWorkers, restart, mainMenu;
         Text grade, reportNames, reportValues;
@@ -62,6 +70,21 @@ namespace Engchanok.StrategyGame
             var idleRect=(RectTransform)idleWorkers.transform; idleRect.pivot=Vector2.zero;
             idleRect.sizeDelta=new Vector2(StrategyMinimap.Size,48); idleRect.anchoredPosition=new Vector2(16,StrategyMinimap.Size+12);
             idleWorkers.GetComponentInChildren<Text>().fontSize=18;
+            // The power bar sits bottom-right above the notice line. Built before the popup, like the minimap, so a popup opened
+            // over it draws on top and keeps its clicks.
+            for(int i=0;i<PowerKeys.Length;i++)
+            {
+                var kind=(PowerKind)i;
+                var button=StrategyUI.Button(canvas.transform,StrategySettings.PowerName(kind),new Vector2(1,0),new Vector2(1,0),()=>commander.BeginPower(kind));
+                var rect=(RectTransform)button.transform; rect.pivot=new Vector2(1,0);
+                rect.sizeDelta=new Vector2(PowerWidth,PowerHeight); rect.anchoredPosition=new Vector2(-16-(PowerKeys.Length-1-i)*(PowerWidth+8),96);
+                button.GetComponentInChildren<Text>().fontSize=18;
+                // The bar floats over the battlefield rather than a panel, so a recharging button stays opaque instead of showing the ground through it.
+                var colors=button.colors; colors.disabledColor=new Color(.55f,.55f,.55f,1); button.colors=colors;
+                var edge=button.transform.Find("Action edge").GetComponent<Image>(); var tone=StrategyPowers.ColorOf(kind); tone.a=.8f; edge.color=tone;
+                powerProgress[i]=StrategyUI.Progress(button.transform,"Recharge progress",new Vector2(.04f,.07f),new Vector2(.96f,.12f),StrategyPowers.ColorOf(kind));
+                powerButtons[i]=button;
+            }
             popup=StrategyUI.Panel(canvas.transform,"Object popup",Vector2.zero,Vector2.zero,StrategyUI.Ink).rectTransform;
             popup.pivot=new Vector2(0,1); popup.sizeDelta=new Vector2(440,500);
             selection=StrategyUI.Label(popup,"",new Vector2(0,1),Vector2.one,23,StrategyUI.Accent);
@@ -114,7 +137,7 @@ namespace Engchanok.StrategyGame
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false);
             help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Ink);
-            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack, gather or set a producer's rally point\nF then click: attack-move    Q E R T G Z X V B: popup actions in order\nCtrl+1-9: store group    1-9: recall group\nWASD / arrows: camera    Wheel: zoom    C: focus    Home: HQ\nMinimap: click to look, right-click to move    Space: last alert\nI: next idle worker    Click objects: inspect / actions\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
+            StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack, gather or set a producer's rally point\nF then click: attack-move    Q E R T G Z X V B: popup actions in order\nCtrl+1-9: store group    1-9: recall group    F1-F4: commander powers\nWASD / arrows: camera    Wheel: zoom    C: focus    Home: HQ\nMinimap: click to look, right-click to move    Space: last alert\nI: next idle worker    Click objects: inspect / actions\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
             drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
             overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
@@ -265,6 +288,23 @@ namespace Engchanok.StrategyGame
                 if(!label.text.StartsWith("[")) label.text="["+ActionKeys[i]+"] "+label.text;
             }
         }
+        // Price, recharge and readiness for each power. The button being aimed stays clickable so a second click puts it away.
+        void UpdatePowers()
+        {
+            for(int i=0;i<powerButtons.Length;i++)
+            {
+                var kind=(PowerKind)i; var button=powerButtons[i]; var power=match.settings.PowerOf(kind);
+                button.gameObject.SetActive(power!=null);
+                if(power==null) continue;
+                bool aiming=commander.TargetingPower==kind;
+                float left=match.Powers!=null?match.Powers.Remaining(kind):0;
+                button.interactable=match.Running && !commander.Placement.HasValue && (aiming || match.CanUsePower(kind,out _));
+                button.image.color=aiming?new Color(.18f,.48f,.45f):new Color(.09f,.22f,.29f);
+                StrategyUI.SetProgress(powerProgress[i],power.cooldown>0?1-left/power.cooldown:1);
+                string status=aiming?"Choose target":left>0?"Recharging "+Mathf.CeilToInt(left)+"s":match.Wallet.Minerals<power.cost?"Need "+(power.cost-match.Wallet.Minerals)+" minerals":"Ready";
+                ActionLabel(button,"["+PowerKeys[i]+"] "+PowerTitle(kind),power.cost+" minerals\n"+status);
+            }
+        }
         static string Clock(float seconds) { int total=Mathf.FloorToInt(seconds); return (total/60).ToString("00")+":"+(total%60).ToString("00"); }
         void UpdateReport()
         {
@@ -350,6 +390,7 @@ namespace Engchanok.StrategyGame
                 string status=match.Research.Active==upgrade?"Researching / "+Mathf.CeilToInt(match.Research.Remaining)+"s left":match.Research.Completed(upgrade)?"Completed":eligible?"Ready to research":reason.Replace("Research already in progress","Another project active");
                 ActionLabel(researchButtons[i],StrategySettings.ResearchName(upgrade),benefit+"\n"+match.settings.ResearchCost(upgrade)+" minerals / "+match.settings.ResearchSeconds(upgrade)+"s\n"+status);
             }
+            UpdatePowers();
             if(match.Research.Active.HasValue && (selected==null || selected.kind!=EntityKind.Worker)) queue.text+="\n"+StrategySettings.ResearchName(match.Research.Active.Value)+": "+Mathf.CeilToInt(match.Research.Remaining)+"s left";
             var next=match.settings.Composition(Mathf.Min(match.Waves.Wave+1,match.Waves.Total));
             objective.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
@@ -369,7 +410,7 @@ namespace Engchanok.StrategyGame
                 for(int i=0;i<3;i++) Highlight(researchButtons[i],step==5 && !match.Research.Active.HasValue && !match.Research.Completed((UpgradeKind)i));
                 Highlight(gather,step==1); Highlight(barracks,step==2); Highlight(TrainButton(EntityKind.Soldier),step==3); Highlight(attack,step==4);
             }
-            notice.text=commander.TargetingRally?"RALLY / Click reachable ground. Esc or right-click cancels.":commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(front)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
+            notice.text=commander.TargetingPower.HasValue?PowerTitle(commander.TargetingPower.Value)+" / Click the target area. Esc or right-click cancels.":commander.TargetingRally?"RALLY / Click reachable ground. Esc or right-click cancels.":commander.TargetingOrder.HasValue?(commander.TargetingOrder==UnitOrder.Gather?"GATHER / Click a teal deposit. Esc or right-click cancels.":"MOVE / Click ground. Esc or right-click cancels."):commander.TargetingAttackMove?"ATTACK-MOVE / Click terrain. Esc or right-click to cancel.":commander.Placement.HasValue?$"PLACE {commander.Placement} / {(commander.PlacementValid?"Click to build":commander.PlacementReason)}":!string.IsNullOrEmpty(match.Notice)?match.Notice:producer && selected.Production.Count>=5?"Production queue full (5).":producer && match.Wallet.Minerals<match.settings.Cost(front)?"More minerals needed to train. Select workers and right-click a deposit.":"Hold the perimeter. Mine, build and command your defenses.";
             muteLabel.text=StrategyFeedback.Muted?"Muted":"Sound";
             overlay.gameObject.SetActive(match.Paused || match.Waves.Result!=MatchResult.Playing); resume.gameObject.SetActive(match.Paused);
             resultTitle.text=match.Paused?"MISSION PAUSED":match.Waves.Result==MatchResult.Victory?"OUTPOST SECURED":"OUTPOST LOST";

@@ -301,6 +301,72 @@ namespace Engchanok.StrategyGame.Tests
                 UnityEngine.InputSystem.Key.Home, UnityEngine.InputSystem.Key.Escape }
                 .Concat(Enumerable.Range(0, 10).Select(n => UnityEngine.InputSystem.Key.Digit1 + n)); // Digit1..Digit9, then Digit0
             CollectionAssert.IsEmpty(keys.Intersect(reserved));
+            var powers = StrategyHud.PowerKeys;
+            Assert.AreEqual(System.Enum.GetValues(typeof(PowerKind)).Length, powers.Length, "Every commander power needs a key.");
+            CollectionAssert.AllItemsAreUnique(powers);
+            CollectionAssert.IsEmpty(powers.Intersect(reserved.Concat(keys)), "Power keys must not steal a popup, camera or group key.");
+        }
+        [Test] public void PowerCooldownAndSpendingAreAtomic()
+        {
+            var wallet = new Wallet(200); var powers = new PowerState();
+            Assert.IsTrue(powers.Ready(PowerKind.Airstrike));
+            Assert.IsFalse(powers.Use(PowerKind.Airstrike, wallet, 201, 60), "An unaffordable power is refused.");
+            Assert.IsTrue(powers.Ready(PowerKind.Airstrike), "A refused power must not start recharging.");
+            Assert.IsFalse(powers.Use((PowerKind)99, wallet, 10, 60)); Assert.IsFalse(powers.Use(PowerKind.Barrage, wallet, 10, -1));
+            Assert.AreEqual(200, wallet.Minerals);
+            Assert.IsTrue(powers.Use(PowerKind.Airstrike, wallet, 125, 60)); Assert.AreEqual(75, wallet.Minerals);
+            Assert.IsFalse(powers.Use(PowerKind.Airstrike, wallet, 10, 60), "A recharging power is refused."); Assert.AreEqual(75, wallet.Minerals);
+            Assert.IsTrue(powers.Use(PowerKind.CryoField, wallet, 75, 40), "Each power recharges independently."); Assert.AreEqual(0, wallet.Minerals);
+            powers.Tick(59); Assert.AreEqual(1, powers.Remaining(PowerKind.Airstrike), 1e-4);
+            powers.Tick(-10); Assert.AreEqual(1, powers.Remaining(PowerKind.Airstrike), 1e-4);
+            powers.Tick(1); Assert.IsTrue(powers.Ready(PowerKind.Airstrike)); Assert.IsTrue(powers.Ready(PowerKind.CryoField));
+            Assert.AreEqual(0, powers.Remaining(PowerKind.RepairField));
+        }
+        [Test] public void EveryPowerHasACompleteProfile()
+        {
+            var settings = Shipped();
+            Assert.IsNotNull(settings, "DefaultStrategy.asset must load.");
+            foreach (PowerKind kind in System.Enum.GetValues(typeof(PowerKind)))
+            {
+                var power = settings.PowerOf(kind);
+                Assert.IsNotNull(power, kind + " has no power profile.");
+                Assert.Greater(power.cost, 0, kind + " cost"); Assert.Greater(power.cooldown, 0, kind + " cooldown");
+                Assert.Greater(power.radius, 0, kind + " radius"); Assert.GreaterOrEqual(power.delay, 0, kind + " delay");
+                if (power.IsStrike) { Assert.Greater(power.strikes, 0, kind + " strikes"); Assert.Greater(power.blast, 0, kind + " blast"); Assert.Greater(power.amount, 0, kind + " damage"); }
+                else Assert.Greater(power.duration, 0, kind + " duration");
+            }
+            float cryo = settings.PowerOf(PowerKind.CryoField).amount;
+            Assert.That(cryo, Is.GreaterThan(0).And.LessThan(1), "Cryo is a pace multiplier, so it must slow without stopping.");
+            Assert.Greater(settings.PowerOf(PowerKind.RepairField).amount, 0);
+            // A full stick of bombs must be able to finish a standard hostile, or nobody would pay for one.
+            var air = settings.PowerOf(PowerKind.Airstrike);
+            Assert.Greater(air.amount * air.strikes, settings.enemyHealth, "An airstrike should be able to kill a standard hostile outright.");
+        }
+        [Test] public void AirstrikeLinesUpAndBarrageStaysInItsCircle()
+        {
+            var air = new PowerProfile { kind = PowerKind.Airstrike, delay = 1.5f, radius = 6, blast = 3, amount = 70, strikes = 5 };
+            var bombs = PowerPlan.Impacts(air, 1);
+            Assert.AreEqual(5, bombs.Count);
+            for (int i = 0; i < bombs.Count; i++)
+            {
+                Assert.AreEqual(0, bombs[i].x, 1e-4, "Bombs fall along the flight line.");
+                Assert.That(bombs[i].z, Is.InRange(-6.001f, 6.001f));
+                if (i > 0) { Assert.Greater(bombs[i].time, bombs[i - 1].time); Assert.Greater(bombs[i].z, bombs[i - 1].z, "The jet flies north."); }
+            }
+            Assert.AreEqual(1.5f, bombs[0].time, 1e-4); Assert.AreEqual(-6, bombs[0].z, 1e-4); Assert.AreEqual(6, bombs[4].z, 1e-4);
+            Assert.AreEqual(12 / PowerPlan.JetSpeed, bombs[4].time - bombs[0].time, 1e-4, "Bomb timing follows the jet's speed.");
+            var barrage = new PowerProfile { kind = PowerKind.Barrage, delay = 1, radius = 8, blast = 2.2f, amount = 45, duration = 4, strikes = 10 };
+            var shells = PowerPlan.Impacts(barrage, 42);
+            Assert.AreEqual(10, shells.Count);
+            CollectionAssert.AreEqual(shells, PowerPlan.Impacts(barrage, 42), "The same seed lands the same barrage.");
+            CollectionAssert.AreNotEqual(shells, PowerPlan.Impacts(barrage, 43));
+            foreach (var (time, x, z) in shells)
+            {
+                Assert.LessOrEqual(Mathf.Sqrt(x * x + z * z), 8.001f, "Shells land inside the barrage circle.");
+                Assert.That(time, Is.InRange(1f, 5.001f));
+            }
+            Assert.IsEmpty(PowerPlan.Impacts(new PowerProfile { kind = PowerKind.CryoField, radius = 7, strikes = 3 }, 1), "Fields have no impacts.");
+            Assert.IsEmpty(PowerPlan.Impacts(null, 1));
         }
     }
 }

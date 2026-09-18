@@ -146,6 +146,11 @@ namespace Engchanok.StrategyGame
             // The field manual is only visible on demand, so capture it explicitly for the overflow check.
             var manual = losingMatch.GetComponent<StrategyHud>().canvas.transform.Find("Controls").gameObject;
             manual.SetActive(true); yield return CaptureLayouts(directory,"manual"); manual.SetActive(false);
+            // Commander powers: the aiming notice and preview, then the bar recharging with the jet mid-run.
+            var losingCommander = losingMatch.GetComponent<StrategyCommander>();
+            losingMatch.Deliver(400);
+            losingCommander.BeginPower(PowerKind.Barrage); yield return CaptureLayouts(directory,"power-aim"); losingCommander.CancelInteractions();
+            losingMatch.UsePower(PowerKind.Airstrike, new Vector3(0,0,4)); yield return CaptureLayouts(directory,"powers");
             losingMatch.Headquarters.Damage(100000);
             yield return null; yield return null;
             yield return CaptureLayouts(directory,"defeat");

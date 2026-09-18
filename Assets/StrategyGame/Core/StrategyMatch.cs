@@ -36,6 +36,40 @@ namespace Engchanok.StrategyGame
             if (!CanResearch(kind, out var reason)) { Notify(reason); return false; }
             return Research.Start(kind, Wallet, settings.ResearchCost(kind), settings.ResearchSeconds(kind));
         }
+        public PowerState Powers { get; private set; }
+        public bool CanUsePower(PowerKind kind, out string reason)
+        {
+            var power = settings.PowerOf(kind);
+            reason = power == null ? "Power unavailable" : !Running ? "Mission is paused or finished" : Headquarters == null || !Headquarters.Alive ? "Headquarters unavailable"
+                : !Powers.Ready(kind) ? "Recharging " + Mathf.CeilToInt(Powers.Remaining(kind)) + "s" : Wallet.Minerals < power.cost ? "Need " + (power.cost - Wallet.Minerals) + " more minerals" : "Ready";
+            return reason == "Ready";
+        }
+        // Spends, starts the recharge and hands the strike to the executor. A point off the battlefield costs nothing.
+        public bool UsePower(PowerKind kind, Vector3 point)
+        {
+            if (!CanUsePower(kind, out var reason)) { Notify(StrategySettings.PowerName(kind) + ": " + reason + "."); return false; }
+            if (Mathf.Abs(point.x) > settings.mapHalfSize || Mathf.Abs(point.z) > settings.mapHalfSize) { Notify("Choose a point on the battlefield."); return false; }
+            var power = settings.PowerOf(kind);
+            if (!Powers.Use(kind, Wallet, power.cost, power.cooldown)) return false;
+            point.y = 0;
+            StrategyPowers.For(this).Launch(power, point);
+            Notify(StrategySettings.PowerName(kind) + (power.IsStrike ? " inbound." : " deployed."));
+            return true;
+        }
+        // Commander strikes have no friendly fire and ignore armor: a flat blast against every hostile it reaches.
+        public int ApplyBlast(Vector3 center, float radius, float damage)
+        {
+            int hit = 0;
+            // Damage removes the dead from Entities, so sweep a copy.
+            foreach (var entity in Entities.ToArray())
+            {
+                if (entity == null || !entity.Alive || !entity.IsEnemy) continue;
+                var offset = entity.transform.position - center; offset.y = 0;
+                if (offset.magnitude > radius + settings.Radius(entity.kind)) continue;
+                entity.Damage(damage); hit++;
+            }
+            return hit;
+        }
         public void FinishPractice()
         {
             if (!Practice) return;
@@ -104,6 +138,7 @@ namespace Engchanok.StrategyGame
             Practice = StrategySession.PracticeRequested; StrategySession.PracticeRequested = false;
             Stats = new MatchStats();
             Research = new ResearchState();
+            Powers = new PowerState();
             Wallet = new Wallet(Practice ? 1000 : settings.startingMinerals);
             Supply = new SupplyModel(settings.supplyLimit);
             Waves = new WaveState(settings.waveCount, settings.preparationSeconds, settings.betweenWaveSeconds);
@@ -132,6 +167,7 @@ namespace Engchanok.StrategyGame
             if (!Running) return;
             if (Headquarters == null || !Headquarters.Alive) { Waves.Tick(0, HostileCount, false); Time.timeScale = 0; return; }
             if (Research.Tick(Time.deltaTime)) { Notify("Research complete. Your forces are upgraded."); StrategyFeedback.Sound(this, 1050, .28f); }
+            Powers.Tick(Time.deltaTime);
             if (noticeTime > 0) { noticeTime -= Time.deltaTime; if (noticeTime <= 0) Notice = ""; }
             if (Practice) { UpdateTutorial(); return; }
             Stats.Elapsed += Time.deltaTime;

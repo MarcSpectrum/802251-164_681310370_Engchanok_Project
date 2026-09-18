@@ -30,6 +30,20 @@ namespace Engchanok.StrategyGame
         bool commandedMove;
         Vector3 navigationGoal;
         float navigationStop = -1;
+        float chillFactor = 1, chillTimer;
+        // A cryo field slows movement and attacks together; the strongest active chill wins.
+        public bool Chilled => chillTimer > 0;
+        public float Pace => Chilled ? chillFactor : 1;
+        public void Chill(float factor, float seconds)
+        {
+            if (!Alive || !IsEnemy || seconds <= 0) return;
+            float before = Pace;
+            factor = Mathf.Clamp(factor, .05f, 1);
+            chillFactor = Chilled ? Mathf.Min(chillFactor, factor) : factor;
+            chillTimer = Mathf.Max(chillTimer, seconds);
+            if (!Mathf.Approximately(before, Pace)) ApplyPace();
+        }
+        void ApplyPace() { if (Agent != null) Agent.speed = match.settings.Speed(kind) * Pace; }
         public void Initialize(StrategyMatch owner)
         {
             match = owner; Health = new HealthModel(match.settings.Health(kind));
@@ -96,8 +110,9 @@ namespace Engchanok.StrategyGame
         {
             if (match == null || !match.Running || !Alive) return;
             float dt = Time.deltaTime;
+            if (chillTimer > 0) { chillTimer = Mathf.Max(0, chillTimer - dt); if (chillTimer <= 0) { chillFactor = 1; ApplyPace(); } }
 
-            attackTimer = Mathf.Max(0, attackTimer - dt);
+            attackTimer = Mathf.Max(0, attackTimer - dt * Pace);
             if (match.settings.IsProducer(kind))
             {
                 Production.Tick(dt);
@@ -106,7 +121,8 @@ namespace Engchanok.StrategyGame
             }
             if (kind == EntityKind.Worker) { UpdateMining(dt); return; }
             // Medics and hostile wardens both mend units and never fight, so one branch serves both sides.
-            if (match.settings.MendsUnits(kind)) { UpdateSupport(dt, true); return; }
+            // A warden with nobody to mend marches on its objective; standing still would hold its wave open forever.
+            if (match.settings.MendsUnits(kind)) { if (!UpdateSupport(dt, true) && IsEnemy) MarchOnObjective(dt); return; }
             // An engineer only fights when there is nothing left to mend.
             if (kind == EntityKind.Engineer && !commandedMove && UpdateSupport(dt, false)) return;
             if (!IsFighter(kind) && kind != EntityKind.Turret && !IsEnemy) return;
@@ -163,7 +179,8 @@ namespace Engchanok.StrategyGame
             if (Vector3.Distance(transform.position, patient.transform.position) > reach)
             { if (!Navigate(patient.transform.position, reach * .85f)) { AttackTarget = null; return false; } return true; }
             Stop();
-            float amount = (units ? match.settings.HealPerSecond(kind) : match.settings.engineerRepairPerSecond) * dt;
+            // Pace is below 1 only for a chilled hostile, so a frozen warden mends slower too.
+            float amount = (units ? match.settings.HealPerSecond(kind) : match.settings.engineerRepairPerSecond) * dt * Pace;
             if (!units)
             {
                 // Repair is paid for in minerals, so holding a turret together competes with building the next one.
@@ -183,6 +200,16 @@ namespace Engchanok.StrategyGame
             }
             supportTimer -= dt;
             return true;
+        }
+        // An unarmed hostile's long march: close to its priority target's edge and wait there, never firing.
+        void MarchOnObjective(float dt)
+        {
+            var objective = match.PriorityTarget(this);
+            if (objective == null || Agent == null) return;
+            float reach = match.settings.Range(kind) + match.settings.Radius(objective.kind);
+            if (Vector3.Distance(transform.position, objective.transform.position) <= reach) { Stop(); return; }
+            if (!Navigate(objective.transform.position, reach * .85f)) return;
+            DetectStuck(dt);
         }
         void UpdateMining(float dt)
         {

@@ -91,6 +91,64 @@ namespace Engchanok.StrategyGame
                 for (int i = 0; i < count; i++) yield return kind;
         }
     }
+    // Commander powers are called onto a point rather than issued to a unit. New kinds append to the end, as with EntityKind.
+    public enum PowerKind { Airstrike, Barrage, CryoField, RepairField }
+    // One power's price and shape. Strikes land `strikes` impacts of `amount` damage within `blast`; fields hold `amount`
+    // (a pace multiplier for cryo, health per second for repair) over `radius` for `duration` seconds. Authored in DefaultStrategy.
+    [Serializable]
+    public sealed class PowerProfile
+    {
+        public PowerKind kind;
+        public int cost;
+        public float cooldown, delay, radius, blast, amount, duration;
+        public int strikes;
+        public bool IsStrike => kind == PowerKind.Airstrike || kind == PowerKind.Barrage;
+    }
+    // Recharge timers per power. Spending and starting the cooldown are one atomic step, like research.
+    public sealed class PowerState
+    {
+        readonly Dictionary<PowerKind, float> cooldowns = new();
+        public float Remaining(PowerKind kind) => cooldowns.TryGetValue(kind, out var left) ? left : 0;
+        public bool Ready(PowerKind kind) => Remaining(kind) <= 0;
+        public bool Use(PowerKind kind, Wallet wallet, int cost, float cooldown)
+        {
+            if (!Enum.IsDefined(typeof(PowerKind), kind) || !Ready(kind) || cooldown < 0 || !wallet.TrySpend(cost)) return false;
+            cooldowns[kind] = cooldown; return true;
+        }
+        public void Tick(float delta)
+        {
+            if (cooldowns.Count == 0) return;
+            foreach (var kind in new List<PowerKind>(cooldowns.Keys)) cooldowns[kind] = Math.Max(0, cooldowns[kind] - Math.Max(0, delta));
+        }
+    }
+    // Where and when a strike's impacts land, as offsets from the target point. Pure so Edit Mode can pin the shapes.
+    public static class PowerPlan
+    {
+        // The jet crosses the target heading north, away from headquarters, at this speed.
+        public const float JetSpeed = 30;
+        public static List<(float time, float x, float z)> Impacts(PowerProfile power, int seed)
+        {
+            var impacts = new List<(float, float, float)>();
+            if (power == null || !power.IsStrike || power.strikes <= 0) return impacts;
+            if (power.kind == PowerKind.Airstrike)
+            {
+                // A stick of bombs laid evenly along the flight line, first at the near edge of the area.
+                float spacing = power.strikes > 1 ? 2 * power.radius / (power.strikes - 1) : 0;
+                for (int i = 0; i < power.strikes; i++)
+                    impacts.Add((power.delay + i * spacing / JetSpeed, 0, power.strikes > 1 ? -power.radius + i * spacing : 0));
+                return impacts;
+            }
+            // Shells spread evenly over the barrage window at seeded points; the square root keeps them uniform across the disc.
+            var random = new Random(seed);
+            for (int i = 0; i < power.strikes; i++)
+            {
+                double angle = random.NextDouble() * Math.PI * 2, distance = Math.Sqrt(random.NextDouble()) * power.radius;
+                float time = power.delay + (power.strikes > 1 ? power.duration * i / (power.strikes - 1) : 0);
+                impacts.Add((time, (float)(Math.Cos(angle) * distance), (float)(Math.Sin(angle) * distance)));
+            }
+            return impacts;
+        }
+    }
     public enum MatchResult { Playing, Victory, Defeat }
     public sealed class HealthModel
     {

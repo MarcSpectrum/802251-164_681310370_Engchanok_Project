@@ -25,7 +25,19 @@ namespace Engchanok.StrategyGame
         }
         public event System.Action TargetingStarted;
         public UnitOrder? TargetingOrder { get; private set; }
-        public bool Targeting => TargetingAttackMove || TargetingOrder.HasValue || TargetingRally;
+        public bool Targeting => TargetingAttackMove || TargetingOrder.HasValue || TargetingRally || TargetingPower.HasValue;
+        // A commander power waiting for its target. It needs no selection: powers are called onto the battlefield, not issued to units.
+        public PowerKind? TargetingPower { get; private set; }
+        LineRenderer powerPreview;
+        PowerKind? previewShape;
+        public void BeginPower(PowerKind kind)
+        {
+            if (!match.Running) return;
+            // Asking for the power already being aimed puts it away again.
+            if (TargetingPower == kind) { CancelInteractions(); return; }
+            if (!match.CanUsePower(kind, out var reason)) { match.Notify(StrategySettings.PowerName(kind) + ": " + reason + "."); return; }
+            CancelInteractions(); TargetingPower = kind; Dragging = false; TargetingStarted?.Invoke();
+        }
         public void BeginOrder(UnitOrder order)
         {
             if (!match.Running || (order != UnitOrder.Move && order != UnitOrder.Gather) || !Selection.Exists(e => e != null && e.Alive && (order == UnitOrder.Gather ? e.kind == EntityKind.Worker : e.IsUnit))) return;
@@ -73,6 +85,7 @@ namespace Engchanok.StrategyGame
         public void CancelInteractions()
         {
             CancelPlacement(); TargetingAttackMove = false; TargetingOrder = null; TargetingRally = false; rallyProducer = null; Dragging = false; minimapDragging = false;
+            TargetingPower = null; if (powerPreview != null) powerPreview.gameObject.SetActive(false);
         }
         // The minimap only draws and maps coordinates; every click on it is routed through this Update so input order stays deterministic.
         public StrategyMinimap Minimap { get; set; }
@@ -111,6 +124,13 @@ namespace Engchanok.StrategyGame
                 StrategyFeedback.Marker(match, point, Color.cyan); TargetingOrder = null; return true;
             }
             if (TargetingAttackMove) { IssueAttackMove(point); TargetingAttackMove = false; return true; }
+            if (TargetingPower.HasValue)
+            {
+                var kind = TargetingPower.Value;
+                // A bad point keeps the power aimed; a power that can no longer be afforded or is recharging stops aiming.
+                if (!match.UsePower(kind, point)) { if (!match.CanUsePower(kind, out _)) CancelInteractions(); return false; }
+                CancelInteractions(); return true;
+            }
             return false;
         }
         // Right-click semantics, shared by world and minimap: a lone producer takes a rally point, otherwise units attack, gather or move.
@@ -201,15 +221,18 @@ namespace Engchanok.StrategyGame
                 Dragging = false;
                 return;
             }
-            if (!match.Running) { Dragging = false; minimapDragging = false; if (preview != null) preview.SetActive(false); return; }
+            if (!match.Running) { Dragging = false; minimapDragging = false; if (preview != null) preview.SetActive(false); if (powerPreview != null) powerPreview.gameObject.SetActive(false); return; }
             if (keys.fKey.wasPressedThisFrame) BeginAttackMove();
             if (keys.iKey.wasPressedThisFrame) SelectNextIdleWorker();
             for (int n = 1; n <= 9; n++)
                 if (keys[(Key)((int)Key.Digit1 + n - 1)].wasPressedThisFrame)
                 { if (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed) StoreGroup(n); else RecallGroup(n); }
+            for (int p = 0; p < StrategyHud.PowerKeys.Length; p++)
+                if (keys[StrategyHud.PowerKeys[p]].wasPressedThisFrame) BeginPower((PowerKind)p);
             if (Targeting)
             {
                 if (mouse.rightButton.wasPressedThisFrame || (TargetingRally && (rallyProducer == null || !rallyProducer.Alive))) { CancelInteractions(); return; }
+                UpdatePowerPreview();
                 if (mouse.leftButton.wasPressedThisFrame && TryTargetPoint(out var targetPoint, out var targetDeposit)) CompleteTargeting(targetPoint, targetDeposit);
                 return;
             }
@@ -262,6 +285,26 @@ namespace Engchanok.StrategyGame
             if (!match.Running || entity == null || !entity.Alive || entity.IsEnemy) return;
             if (!Selection.Contains(entity)) Selection.Add(entity);
             entity.Selected = true; InspectedObject = entity.transform; PopupOpen = true;
+        }
+        // Outlines the aimed power's area on the ground under the pointer, in the same shape its zone will take.
+        void UpdatePowerPreview()
+        {
+            var power = TargetingPower.HasValue ? match.settings.PowerOf(TargetingPower.Value) : null;
+            if (power == null) { if (powerPreview != null) powerPreview.gameObject.SetActive(false); return; }
+            if (powerPreview == null)
+            {
+                powerPreview = StrategyFeedback.Ring(transform, match.beamMaterial, 1, Color.white);
+                powerPreview.name = "Power preview"; powerPreview.gameObject.layer = 2; powerPreview.startWidth = powerPreview.endWidth = .12f;
+            }
+            if (previewShape != power.kind)
+            {
+                StrategyPowers.Shape(powerPreview, power); previewShape = power.kind;
+                var tint = new MaterialPropertyBlock(); tint.SetColor("_BaseColor", StrategyPowers.ColorOf(power.kind)); powerPreview.SetPropertyBlock(tint);
+            }
+            var plane = new Plane(Vector3.up, Vector3.zero); var ray = view.ScreenPointToRay(Pointer);
+            bool ground = plane.Raycast(ray, out float distance) && !PointerOverUI;
+            powerPreview.gameObject.SetActive(ground);
+            if (ground) powerPreview.transform.position = ray.GetPoint(distance);
         }
         void UpdatePreview()
         {

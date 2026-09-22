@@ -34,9 +34,9 @@ namespace Engchanok.StrategyGame.Editor
             var worker = Material("Workers", new Color(1, .68f, .15f));
             var red = Material("Hostiles", new Color(.95f, .18f, .23f));
             var metal = Material("Structures", new Color(.19f, .32f, .42f));
-            var ground = Material("Ground", new Color(.055f, .105f, .14f));
+            var ground = Material("Forest Meadow", new Color(.51f, .67f, .26f));
             var mineral = Material("Minerals", new Color(.15f, .95f, .8f));
-            var lane = Material("Lanes", new Color(.15f, .22f, .27f));
+            var lane = Material("Forest Earth", new Color(.75f, .63f, .42f));
             var beam = Material("Beam", new Color(.8f, 1, 1), true);
             StrategyEntity[] prefabs = new StrategyEntity[System.Enum.GetValues(typeof(EntityKind)).Length];
             foreach (EntityKind kind in System.Enum.GetValues(typeof(EntityKind)))
@@ -133,7 +133,7 @@ namespace Engchanok.StrategyGame.Editor
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), GamePath);
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var menuCamera = CameraObject(new Vector3(0, 24, -25), new Color(.025f, .05f, .09f)); LightObject();
-            BuildDiorama(Material("Ground", Color.gray), Material("Beam", Color.white, true));
+            BuildDiorama(Material("Forest Meadow", Color.green), Material("Beam", Color.white, true));
             new GameObject("Main menu").AddComponent<StrategyMenu>().BuildUI();
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), MenuPath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(MenuPath, true), new EditorBuildSettingsScene(GamePath, true) };
@@ -254,27 +254,7 @@ namespace Engchanok.StrategyGame.Editor
         }
         static void DressBattlefield(float extent, Material ground, Material lane, Material metal, Material glow)
         {
-            var root=new GameObject("Cosmetic ground and perimeter").transform;
-            // Thin plates and distant scenery have no colliders and never enter the navigation hierarchy.
-            for(int x=-24;x<=24;x+=8) for(int z=-24;z<=24;z+=8)
-                Visual(root,"Deck inset",PrimitiveType.Cube,new Vector3(x,.008f,z),new Vector3(7.85f,.012f,7.85f),Material("Deck plates",new Color(.075f,.13f,.17f)));
-            for(int side=-1;side<=1;side+=2) for(int z=-28;z<=28;z+=7)
-            {
-                float x=side*(extent-2);
-                Visual(root,"Perimeter plinth",PrimitiveType.Cube,new Vector3(x,.4f,z),new Vector3(1.3f,.8f,2.4f),metal);
-                Visual(root,"Perimeter light",PrimitiveType.Cube,new Vector3(x,.85f,z),new Vector3(.22f,.12f,1.9f),glow);
-                Visual(root,"Outer machinery",PrimitiveType.Cube,new Vector3(side*(extent+3),1,z),new Vector3(3,2,4),lane);
-            }
-            foreach(var start in StrategyMatch.SpawnPoints)
-            {
-                Vector3 direction=(StrategyMatch.HomePosition-start).normalized;
-                for(int i=0;i<6;i++) for(int side=-1;side<=1;side+=2)
-                {
-                    var pos=start+direction*(5+i*6)+Vector3.Cross(direction,Vector3.up)*side*2.7f;
-                    var mark=Visual(root,"Approach edge marker",PrimitiveType.Cube,pos+Vector3.up*.05f,new Vector3(.12f,.04f,.8f),glow);
-                    mark.transform.rotation=Quaternion.LookRotation(direction);
-                }
-            }
+            ForestEnvironment.Dress(extent);
         }
         static void BuildDiorama(Material ground, Material glow)
         {
@@ -290,11 +270,7 @@ namespace Engchanok.StrategyGame.Editor
                 // Copy only the render hierarchy: the menu has no entities, agents or gameplay scripts.
                 foreach(Transform child in prefab.transform) Object.Instantiate(child.gameObject,display,false);
             }
-            for(int i=0;i<12;i++)
-            {
-                float angle=i*Mathf.PI/6;
-                Visual(root,"Deck beacon",PrimitiveType.Cube,new Vector3(9+Mathf.Cos(angle)*9,.06f,Mathf.Sin(angle)*7.4f),new Vector3(.2f,.1f,.7f),glow);
-            }
+            ForestEnvironment.Dress(40, true);
         }
         static Material Material(string name, Color color, bool unlit = false)
         {
@@ -318,6 +294,7 @@ namespace Engchanok.StrategyGame.Editor
             var light = new GameObject("Sun").AddComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.35f; light.color = new Color(1,.91f,.8f); light.shadows = LightShadows.Soft; light.transform.rotation = Quaternion.Euler(50, -30, 0);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(.38f, .48f, .62f);
+            ForestEnvironment.Lighting();
         }
         [MenuItem("Strategy Game/Build Windows Development")]
         public static void BuildWindows()

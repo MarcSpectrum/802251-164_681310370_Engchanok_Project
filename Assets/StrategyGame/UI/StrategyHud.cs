@@ -30,7 +30,7 @@ namespace Engchanok.StrategyGame
         readonly Button[] researchButtons = new Button[3];
         LineRenderer tutorialRing;
         static void ActionLabel(Button button, string title, string detail) { button.GetComponentInChildren<Text>().text = title + "\n" + detail; }
-        static void Highlight(Button button, bool on) { button.image.color = on ? new Color(.18f,.48f,.45f) : new Color(.09f,.22f,.29f); }
+        static void Highlight(Button button, bool on) { button.image.color = on ? StrategyUI.SelectedFill : StrategyUI.ButtonFill; }
         Image overlay, help, drag;
         readonly Dictionary<StrategyEntity, Image> healthBars = new();
         // Positional hotkeys for the popup's visible actions, in list order. The headquarters list is exactly nine long.
@@ -51,9 +51,9 @@ namespace Engchanok.StrategyGame
         {
             if (canvas != null) return;
             canvas=StrategyUI.Canvas(transform);
-            var top=StrategyUI.Panel(canvas.transform,"Status",new Vector2(0,.895f),Vector2.one,StrategyUI.Ink);
+            var top=StrategyUI.Panel(canvas.transform,"Status",new Vector2(.01f,.895f),new Vector2(.99f,.985f),StrategyUI.Paper);
             StrategyUI.Label(top.transform,"OUTPOST\nSURVIVAL",new Vector2(0,0),new Vector2(.13f,1),22,StrategyUI.Accent);
-            resources=StrategyUI.Label(top.transform,"",new Vector2(.13f,0),new Vector2(.26f,1),24,new Color(1,.75f,.35f));
+            resources=StrategyUI.Label(top.transform,"",new Vector2(.13f,0),new Vector2(.26f,1),24,StrategyUI.Warning);
             supply=StrategyUI.Label(top.transform,"",new Vector2(.26f,0),new Vector2(.39f,1),24,StrategyUI.Accent);
             headquartersStatus=StrategyUI.Label(top.transform,"",new Vector2(.39f,.15f),new Vector2(.58f,1),22);
             headquartersProgress=StrategyUI.Progress(top.transform,"HQ integrity",new Vector2(.4f,.12f),new Vector2(.57f,.19f),StrategyUI.Accent);
@@ -63,7 +63,9 @@ namespace Engchanok.StrategyGame
             var mute=StrategyUI.Button(top.transform,"Sound",new Vector2(.86f,.15f),new Vector2(.93f,.85f),()=> { StrategyFeedback.Muted=!StrategyFeedback.Muted; AudioListener.volume=StrategyFeedback.Muted?0:1; });
             muteLabel=mute.GetComponentInChildren<Text>();
             StrategyUI.Button(top.transform,"Pause",new Vector2(.93f,.15f),new Vector2(1,.85f),()=> { if(match.Waves.Result==MatchResult.Playing) match.SetPaused(!match.Paused); });
-            notice=StrategyUI.Label(canvas.transform,"",new Vector2(.01f,.015f),new Vector2(.99f,.085f),22,StrategyUI.Accent);
+            var noticeCard=StrategyUI.Panel(canvas.transform,"Command hint",new Vector2(.01f,.015f),new Vector2(.99f,.075f),StrategyUI.Paper);
+            noticeCard.raycastTarget=false;
+            notice=StrategyUI.Label(noticeCard.transform,"",Vector2.zero,Vector2.one,22,StrategyUI.TextInk);
             // Built before the popup so a popup opened over the bottom-left corner draws on top and keeps its clicks.
             Minimap=StrategyMinimap.Create(canvas.transform,match,commander.view);
             idleWorkers=StrategyUI.Button(canvas.transform,"Idle workers",new Vector2(0,.085f),new Vector2(0,.085f),()=>commander.SelectNextIdleWorker());
@@ -80,29 +82,29 @@ namespace Engchanok.StrategyGame
                 rect.sizeDelta=new Vector2(PowerWidth,PowerHeight); rect.anchoredPosition=new Vector2(-16-(PowerKeys.Length-1-i)*(PowerWidth+8),96);
                 button.GetComponentInChildren<Text>().fontSize=18;
                 // The bar floats over the battlefield rather than a panel, so a recharging button stays opaque instead of showing the ground through it.
-                var colors=button.colors; colors.disabledColor=new Color(.55f,.55f,.55f,1); button.colors=colors;
+                var colors=button.colors; colors.disabledColor=new Color(.94f,.94f,.9f,1); button.colors=colors;
                 var edge=button.transform.Find("Action edge").GetComponent<Image>(); var tone=StrategyPowers.ColorOf(kind); tone.a=.8f; edge.color=tone;
                 powerProgress[i]=StrategyUI.Progress(button.transform,"Recharge progress",new Vector2(.04f,.07f),new Vector2(.96f,.12f),StrategyPowers.ColorOf(kind));
                 powerButtons[i]=button;
             }
-            popup=StrategyUI.Panel(canvas.transform,"Object popup",Vector2.zero,Vector2.zero,StrategyUI.Ink).rectTransform;
+            popup=StrategyUI.Panel(canvas.transform,"Object popup",Vector2.zero,Vector2.zero,StrategyUI.Paper).rectTransform;
             popup.pivot=new Vector2(0,1); popup.sizeDelta=new Vector2(440,500);
             selection=StrategyUI.Label(popup,"",new Vector2(0,1),Vector2.one,23,StrategyUI.Accent);
-            SetRow(selection.rectTransform,0,54,354); selection.rectTransform.anchoredPosition=new Vector2(12,0);
+            SetRow(selection.rectTransform,0,54,342); selection.rectTransform.anchoredPosition=new Vector2(24,0);
             var close=StrategyUI.Button(popup,"X",Vector2.zero,Vector2.one,()=>commander.ClosePopup());
             SetRow((RectTransform)close.transform,4,44,48); ((RectTransform)close.transform).anchoredPosition=new Vector2(384,-4);
             queue=StrategyUI.Label(popup,"",Vector2.zero,Vector2.one,19);
-            SetRow(queue.rectTransform,54,88,416); queue.rectTransform.anchoredPosition=new Vector2(12,-54);
+            SetRow(queue.rectTransform,54,88,392); queue.rectTransform.anchoredPosition=new Vector2(24,-54);
             trainingProgress=StrategyUI.Progress(popup,"Training progress",Vector2.zero,Vector2.one,StrategyUI.Accent);
             SetRow((RectTransform)trainingProgress.transform.parent,143,5,416); ((RectTransform)trainingProgress.transform.parent).anchoredPosition=new Vector2(12,-143);
-            var viewport=StrategyUI.Panel(popup,"Action viewport",Vector2.zero,Vector2.one,StrategyUI.Ink).rectTransform;
+            var viewport=StrategyUI.Panel(popup,"Action viewport",Vector2.zero,Vector2.one,StrategyUI.Paper).rectTransform;
             viewport.offsetMin=new Vector2(8,8); viewport.offsetMax=new Vector2(-24,-158);
             viewport.gameObject.AddComponent<RectMask2D>();
             actionScroll=viewport.gameObject.AddComponent<ScrollRect>();
             actionScroll.viewport=viewport; actionScroll.horizontal=false; actionScroll.movementType=ScrollRect.MovementType.Clamped; actionScroll.scrollSensitivity=30;
             actionContent=StrategyUI.Rect(viewport,"Actions",new Vector2(0,1),Vector2.one,Vector2.zero,Vector2.zero);
             actionContent.pivot=new Vector2(.5f,1); actionScroll.content=actionContent;
-            var scrollTrack=StrategyUI.Panel(popup,"Action scrollbar",new Vector2(1,0),Vector2.one,new Color(.06f,.13f,.18f)).rectTransform;
+            var scrollTrack=StrategyUI.Panel(popup,"Action scrollbar",new Vector2(1,0),Vector2.one,new Color(.84f,.86f,.71f)).rectTransform;
             scrollTrack.offsetMin=new Vector2(-18,8); scrollTrack.offsetMax=new Vector2(-8,-158);
             var thumb=StrategyUI.Panel(scrollTrack,"Thumb",Vector2.zero,Vector2.one,StrategyUI.Accent);
             var scrollbar=scrollTrack.gameObject.AddComponent<Scrollbar>(); scrollbar.handleRect=thumb.rectTransform;
@@ -131,16 +133,20 @@ namespace Engchanok.StrategyGame
             }
             popup.gameObject.SetActive(false);
             // Deep enough for the seven-kind final-wave preview to wrap; the tutorial panel starts at x .65, so this column is free.
-            objective=StrategyUI.Label(canvas.transform,"Protect headquarters. Defeat five waves.",new Vector2(.01f,.76f),new Vector2(.65f,.895f),23,StrategyUI.Accent);
-            tutorialPanel=StrategyUI.Panel(canvas.transform,"Guided practice",new Vector2(.65f,.51f),new Vector2(.99f,.83f),StrategyUI.Ink);
+            var objectiveCard=StrategyUI.Panel(canvas.transform,"Mission note",new Vector2(.01f,.885f),new Vector2(.64f,.885f),StrategyUI.Paper);
+            objectiveCard.raycastTarget=false; objectiveCard.rectTransform.pivot=new Vector2(.5f,1); objectiveCard.rectTransform.sizeDelta=new Vector2(0,72);
+            objective=StrategyUI.Label(objectiveCard.transform,"Protect headquarters. Defeat five waves.",Vector2.zero,Vector2.one,23,StrategyUI.TextInk);
+            tutorialPanel=StrategyUI.Panel(canvas.transform,"Guided practice",new Vector2(.65f,.51f),new Vector2(.99f,.83f),StrategyUI.Paper);
             tutorialText=StrategyUI.Label(tutorialPanel.transform,"",new Vector2(0,.27f),Vector2.one,23);
             tutorialNext=StrategyUI.Button(tutorialPanel.transform,"Skip tutorial / start fresh mission",Vector2.zero,new Vector2(1,.27f),()=>match.FinishPractice());
             tutorialPanel.gameObject.SetActive(false);
-            help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Ink);
+            help=StrategyUI.Panel(canvas.transform,"Controls",new Vector2(.22f,.16f),new Vector2(.78f,.84f),StrategyUI.Paper);
             StrategyUI.Label(help.transform,"FIELD MANUAL\n\nLeft-click / drag: select    Shift: add selection\nRight-click: move, attack, gather or set a producer's rally point\nF then click: attack-move    Q E R T G Z X V B: popup actions in order\nCtrl+1-9: store group    1-9: recall group    F1-F4: commander powers\nWASD / arrows: camera    Wheel: zoom    C: focus    Home: HQ\nMinimap: click to look, right-click to move    Space: last alert\nI: next idle worker    Click objects: inspect / actions\nEsc / right-click: cancel targeting    Esc: pause\n\nSUPPLY  Workers cost 1, soldiers cost 2. HQ and barracks\nprovide some; build supply relays for more.\n\nARMOR  Soldiers beat Light and Medium, struggle with Heavy.\nTurrets crush Heavy but barely scratch Light. Read the next\nwave preview and build the answer before it arrives.\n\nHOSTILES  Runners hunt your workers, brutes and juggernauts\nsiege your structures, standard hostiles march on HQ.\nLancers shoot from range, breakers are built to smash a\ndefender screen, and wardens mend the wave until you kill\nthem. Click any hostile to read what answers it.",new Vector2(0,.15f),Vector2.one,20);
             StrategyUI.Button(help.transform,"Close",Vector2.zero,new Vector2(1,.15f),()=>help.gameObject.SetActive(false)); help.gameObject.SetActive(false);
-            drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.1f,.9f,1,.2f)); drag.raycastTarget=false;
-            overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.01f,.025f,.045f,.95f));
+            drag=StrategyUI.Panel(canvas.transform,"Selection box",Vector2.zero,Vector2.zero,new Color(.65f,.85f,.46f,.24f)); drag.raycastTarget=false;
+            overlay=StrategyUI.Panel(canvas.transform,"Mission overlay",Vector2.zero,Vector2.one,new Color(.09f,.20f,.15f,.68f));
+            ((ForestPanel)overlay).cornerRadius=0;
+            StrategyUI.Panel(overlay.transform,"Mission paper",new Vector2(.27f,.17f),new Vector2(.73f,.9f),StrategyUI.Paper);
             resultTitle=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.76f),new Vector2(.7f,.86f),44,StrategyUI.Accent);
             resultBody=StrategyUI.Label(overlay.transform,"",new Vector2(.3f,.7f),new Vector2(.7f,.76f),24);
             // The mission report: a grade beside two aligned columns of counters. Hidden while merely paused.
@@ -156,7 +162,12 @@ namespace Engchanok.StrategyGame
             rect.anchorMin=rect.anchorMax=new Vector2(0,1); rect.pivot=new Vector2(0,1);
             rect.anchoredPosition=new Vector2(0,-top); rect.sizeDelta=new Vector2(width,height);
         }
-        Button PopupAction(string name, UnityEngine.Events.UnityAction action) => StrategyUI.Button(actionContent,name,Vector2.zero,Vector2.one,action);
+        Button PopupAction(string name, UnityEngine.Events.UnityAction action)
+        {
+            var button=StrategyUI.Button(actionContent,name,Vector2.zero,Vector2.one,action);
+            button.GetComponentInChildren<Text>().fontStyle=FontStyle.Normal;
+            return button;
+        }
         // Percentages keep the counter table readable without culture-sensitive decimal formatting.
         string Percent(EntityKind attacker, EntityKind target) => Mathf.RoundToInt(match.settings.DamageScale(attacker,target)*100)+"%";
         string Counters(EntityKind attacker) => "vs Light "+Percent(attacker,EntityKind.Runner)+"  Medium "+Percent(attacker,EntityKind.Enemy)+"  Heavy "+Percent(attacker,EntityKind.Brute);
@@ -299,7 +310,7 @@ namespace Engchanok.StrategyGame
                 bool aiming=commander.TargetingPower==kind;
                 float left=match.Powers!=null?match.Powers.Remaining(kind):0;
                 button.interactable=match.Running && !commander.Placement.HasValue && (aiming || match.CanUsePower(kind,out _));
-                button.image.color=aiming?new Color(.18f,.48f,.45f):new Color(.09f,.22f,.29f);
+                button.image.color=aiming?StrategyUI.SelectedFill:StrategyUI.ButtonFill;
                 StrategyUI.SetProgress(powerProgress[i],power.cooldown>0?1-left/power.cooldown:1);
                 string status=aiming?"Choose target":left>0?"Recharging "+Mathf.CeilToInt(left)+"s":match.Wallet.Minerals<power.cost?"Need "+(power.cost-match.Wallet.Minerals)+" minerals":"Ready";
                 ActionLabel(button,"["+PowerKeys[i]+"] "+PowerTitle(kind),power.cost+" minerals\n"+status);
@@ -317,7 +328,7 @@ namespace Engchanok.StrategyGame
             float integrity=hq!=null && hq.Alive?hq.Health.Current:0;
             string letter=MatchStats.Grade(match.Waves.Result,integrity/Mathf.Max(1,match.settings.headquartersHealth),stats.UnitsLost,stats.UnitsTrained);
             grade.text=letter;
-            grade.color=letter=="S" || letter=="A"?StrategyUI.Accent:letter=="B"?Color.white:new Color(1,.42f,.38f);
+            grade.color=letter=="S" || letter=="A"?StrategyUI.Accent:letter=="B"?StrategyUI.TextInk:StrategyUI.Warning;
             reportNames.text="Mission time\nWaves cleared\nHQ integrity\nMinerals mined\nMinerals spent\nUnits trained / lost\nStructures built / lost\nHostiles defeated";
             reportValues.text=Clock(stats.Elapsed)+"\n"+match.Waves.Cleared+" / "+match.Waves.Total+"\n"+Mathf.CeilToInt(integrity)+" / "+match.settings.headquartersHealth
                 +"\n"+match.DeliveredMinerals+"\n"+match.Wallet.Spent+"\n"+stats.UnitsTrained+" / "+stats.UnitsLost+"\n"+stats.StructuresBuilt+" / "+stats.StructuresLost+"\n"+stats.HostilesDefeated;
@@ -336,12 +347,12 @@ namespace Engchanok.StrategyGame
             var hq=match.Headquarters;
             int idle=match.IdleWorkerCount;
             idleWorkers.interactable=match.Running && idle>0;
-            idleWorkers.image.color=idle>0?new Color(.42f,.3f,.1f):new Color(.09f,.22f,.29f);
+            idleWorkers.image.color=idle>0?new Color(.92f,.79f,.49f):StrategyUI.ButtonFill;
             idleWorkers.GetComponentInChildren<Text>().text="IDLE WORKERS "+idle+" [I]";
             resources.text=$"MINERALS\n<b>{match.Wallet.Minerals}</b>";
             bool supplyFull=match.Supply!=null && match.Supply.Full;
             supply.text=$"SUPPLY\n<b>{(match.Supply!=null?match.Supply.Used:0)} / {(match.Supply!=null?match.Supply.Cap:0)}</b>";
-            supply.color=supplyFull?new Color(1,.55f,.3f):StrategyUI.Accent;
+            supply.color=supplyFull?StrategyUI.Warning:StrategyUI.Accent;
             headquartersStatus.text=$"HQ INTEGRITY\n{(hq!=null?Mathf.CeilToInt(hq.Health.Current):0)} / {match.settings.headquartersHealth}";
             StrategyUI.SetProgress(headquartersProgress,hq!=null?hq.Health.Current/hq.Health.Maximum:0);
             wave.text=match.Practice?"PRACTICE / NO ENEMIES\nLearn at your own pace":match.Waves.Result!=MatchResult.Playing?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nMISSION COMPLETE":match.Waves.Active?$"WAVE {match.Waves.Wave} / {match.Waves.Total}\nHOSTILES  {match.HostileCount}":$"PREPARE / WAVE {match.Waves.Wave+1}\nINCOMING IN {Mathf.CeilToInt(match.Waves.Countdown)}s";
@@ -385,7 +396,7 @@ namespace Engchanok.StrategyGame
                 researchButtons[i].interactable=ready && eligible;
                 float bonus=i==0?match.settings.miningResearchBonus:i==1?match.settings.soldierResearchBonus:match.settings.turretResearchBonus;
                 StrategyUI.SetProgress(researchProgress[i],match.Research.Completed(upgrade)?1:match.Research.Active==upgrade?1-match.Research.Remaining/Mathf.Max(.1f,match.settings.ResearchSeconds(upgrade)):0);
-                researchButtons[i].image.color=match.Research.Completed(upgrade)?new Color(.12f,.35f,.3f):match.Research.Active==upgrade?new Color(.14f,.32f,.4f):new Color(.09f,.22f,.29f);
+                researchButtons[i].image.color=match.Research.Completed(upgrade)?StrategyUI.SelectedFill:match.Research.Active==upgrade?new Color(.71f,.83f,.77f):StrategyUI.ButtonFill;
                 string benefit="+"+Mathf.RoundToInt(bonus*100)+"% "+(i==0?"carrying capacity":"damage");
                 string status=match.Research.Active==upgrade?"Researching / "+Mathf.CeilToInt(match.Research.Remaining)+"s left":match.Research.Completed(upgrade)?"Completed":eligible?"Ready to research":reason.Replace("Research already in progress","Another project active");
                 ActionLabel(researchButtons[i],StrategySettings.ResearchName(upgrade),benefit+"\n"+match.settings.ResearchCost(upgrade)+" minerals / "+match.settings.ResearchSeconds(upgrade)+"s\n"+status);
@@ -393,14 +404,15 @@ namespace Engchanok.StrategyGame
             UpdatePowers();
             if(match.Research.Active.HasValue && (selected==null || selected.kind!=EntityKind.Worker)) queue.text+="\n"+StrategySettings.ResearchName(match.Research.Active.Value)+": "+Mathf.CeilToInt(match.Research.Remaining)+"s left";
             var next=match.settings.Composition(Mathf.Min(match.Waves.Wave+1,match.Waves.Total));
-            objective.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
+            objective.transform.parent.gameObject.SetActive(match.Waves.Result==MatchResult.Playing);
             objective.text=match.Practice?"GUIDED PRACTICE / No enemy waves":match.Waves.Active?"Protect headquarters / Defeat the remaining enemies":WavePreview(next);
+            ((RectTransform)objective.transform.parent).SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,Mathf.Max(64,objective.preferredHeight+32));
             tutorialPanel.gameObject.SetActive(match.Practice && match.Running);
             if(match.Practice)
             {
                 int step=match.TutorialStep;
                 string[] instructions={"1 / 6  SELECT A WORKER\nClick an orange worker near headquarters.","2 / 6  GATHER MINERALS\nClick Gather, then a teal deposit. Wait for a worker to bring minerals home.","3 / 6  BUILD A BARRACKS\nClick HQ, then Build barracks. Place it inside the ring, away from the approach lanes.","4 / 6  TRAIN A SOLDIER\nSelect your barracks, then Train Soldier. Wait for training.","5 / 6  COMMAND YOUR SOLDIER\nSelect a soldier. Click Attack-move, then choose ground ahead of headquarters.","6 / 6  INVEST IN RESEARCH\nClick HQ, scroll down, and choose research. Wait for completion; its benefit applies to current and future units.","READY TO DEPLOY\nPractice complete! Your mission starts fresh with normal resources and no upgrades."};
-                if(tutorialRing==null) tutorialRing=StrategyFeedback.Ring(transform,match.beamMaterial,2,StrategyUI.Accent);
+                if(tutorialRing==null) tutorialRing=StrategyFeedback.Ring(transform,match.beamMaterial,2,new Color(.15f,.85f,.85f));
                 var target=step==0?match.Entities.Find(e=>e.kind==EntityKind.Worker):step==3?match.Entities.Find(e=>e.kind==EntityKind.Barracks):step==4?match.Entities.Find(e=>e.kind==EntityKind.Soldier):step==2 || step==5?match.Headquarters:null;
                 var deposit=step==1?System.Array.Find(Object.FindObjectsByType<MineralDeposit>(FindObjectsSortMode.None),d=>d.transform.position.x<0 && d.transform.position.z<-12):null;
                 tutorialRing.gameObject.SetActive(match.Running && step<6);
@@ -461,7 +473,7 @@ namespace Engchanok.StrategyGame
                 if(!healthBars.TryGetValue(e,out var bar))
                 {
                     bar=StrategyUI.Panel(canvas.transform,"Health",Vector2.zero,Vector2.zero,Color.black); bar.raycastTarget=false; bar.transform.SetAsFirstSibling();
-                    var fill=StrategyUI.Panel(bar.transform,"Fill",Vector2.zero,Vector2.one,e.IsEnemy?new Color(1,.3f,.3f):StrategyUI.Accent); fill.raycastTarget=false;
+                    var fill=StrategyUI.Panel(bar.transform,"Fill",Vector2.zero,Vector2.one,e.IsEnemy?new Color(1,.3f,.3f):new Color(.35f,.85f,.45f)); fill.raycastTarget=false;
                     healthBars[e]=bar;
                 }
                 Vector3 point=commander.view.WorldToScreenPoint(e.transform.position+Vector3.up*(e.IsUnit?2.3f:4));

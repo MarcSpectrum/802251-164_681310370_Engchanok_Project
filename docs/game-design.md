@@ -148,7 +148,7 @@ The presentation uses refined geometric models and industrial details designed t
 
 Warm directional light and cool ambient light reveal form; luminous accents remain restrained. Ground plates, approach markers, and perimeter machinery establish an operational outpost. Scenery has no collision and does not alter navigation, gathering access, or construction footprints.
 
-The interface uses consistent navy panels, cyan rules, clear action states, separate minerals/supply/HQ/wave status, and training/research progress bars. The supply readout turns amber at the cap. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
+The interface uses rounded cream paper panels, peach stitched borders, sage-green controls and dark blue lettering, with clear action states, separate minerals/supply/HQ/wave status, and training/research progress bars. The supply readout turns amber at the cap. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
 
 This polish milestone preserves the existing map, balance, five waves, research, tutorial, and controls. Effects follow the match clock, freeze on pause, and are cleared when a match ends or restarts. No camera shake, asset packs, or new dependencies are introduced.
 
@@ -159,3 +159,10 @@ Left-click selects and inspects an object in a contextual popup without pausing 
 The popup tracks its target, clamps within the screen, and remains stationary under the pointer. Scroll the HQ action list to reach research. Relevant unavailable actions explain their requirements. Empty-ground clicks clear selection; X dismisses the popup while retaining friendly selection. Destroyed targets close their popup (or fall back to surviving group members). Targeted actions hide the popup until completion/cancellation. UI clicks never issue world orders, with one deliberate exception: the minimap, which is the world drawn small and passes the same pause and mission-end gates. The top status strip and tutorial remain visible.
 
 WASD/arrows pan; the wheel zooms outside UI. C frames friendly selection; Home restores the HQ overview. Escape/right-click cancels targeting; Escape otherwise pauses. Manual pause and mission completion still gate commands. There is no separate close-up inspection mode; I now selects idle workers.
+
+## Forest environment
+The outpost now sits in a bright stylized woodland clearing inspired by the supplied forest reference: yellow-green rounded crowns, mossy stones, blue and cream wildflowers, warm dirt approaches, soft sunlight and distant mint haze. Tall trees frame the map outside its playable boundary; low planting avoids the HQ construction perimeter and reserved approach lanes. Allied and hostile silhouettes and colors remain readable. The menu presents the same setting as a fenced garden around the outpost.
+
+
+## Woodland interface
+The menu borrows the reference image's playful cream title, gently tilted stitched paper card and green pill-shaped selection. It keeps the existing Play, Learn to Play and Exit actions. Matching paper panels style the HUD status, minimap frame, mission note, command hint, inspection popups, tutorial, field manual, pause and results. Power colors and readable availability/recharge text remain visible. All existing input, hotkeys and mission rules are preserved.

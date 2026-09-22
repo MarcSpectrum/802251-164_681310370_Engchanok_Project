@@ -166,7 +166,7 @@ namespace Engchanok.StrategyGame
             if (hull != null) return;
             var lit = Shader.Find("Universal Render Pipeline/Lit"); var unlit = Shader.Find("Universal Render Pipeline/Unlit");
             hull = lit != null ? new Material(lit) : new Material(match.beamMaterial); hull.SetColor("_BaseColor", new Color(.13f, .18f, .26f));
-            glow = unlit != null ? new Material(unlit) : new Material(match.beamMaterial); glow.SetColor("_BaseColor", StrategyUI.Accent);
+            glow = unlit != null ? new Material(unlit) : new Material(match.beamMaterial); glow.SetColor("_BaseColor", new Color(.15f,.85f,.85f));
         }
         // A geometric strike jet in the outpost's navy-and-cyan style. Render-only: no colliders, and it ignores raycasts.
         Transform BuildJet()

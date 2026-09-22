@@ -58,7 +58,7 @@ namespace Engchanok.StrategyGame
 
         public static StrategyMinimap Create(Transform canvas, StrategyMatch match, Camera view)
         {
-            var panel = StrategyUI.Panel(canvas, "Minimap", new Vector2(0, .085f), new Vector2(0, .085f), StrategyUI.Ink);
+            var panel = StrategyUI.Panel(canvas, "Minimap", new Vector2(0, .085f), new Vector2(0, .085f), StrategyUI.Paper);
             var rect = panel.rectTransform; rect.pivot = Vector2.zero; rect.sizeDelta = Vector2.one * Size; rect.anchoredPosition = new Vector2(16, 8);
             var minimap = panel.gameObject.AddComponent<StrategyMinimap>();
             minimap.match = match; minimap.view = view; minimap.Build();
@@ -66,14 +66,14 @@ namespace Engchanok.StrategyGame
         }
         void Build()
         {
-            var ground = StrategyUI.Panel(transform, "Field", Vector2.zero, Vector2.one, new Color(.055f, .105f, .14f)); ground.raycastTarget = false;
-            field = ground.rectTransform; field.offsetMin = new Vector2(6, 6); field.offsetMax = new Vector2(-6, -6);
+            var ground = StrategyUI.Panel(transform, "Field", Vector2.zero, Vector2.one, new Color(.38f, .51f, .32f)); ground.raycastTarget = false;
+            field = ground.rectTransform; field.offsetMin = new Vector2(17, 17); field.offsetMax = new Vector2(-17, -17);
             StrategyUI.Rule(transform, new Vector2(0, .985f), Vector2.one);
             structures = Layer("Structures"); units = Layer("Units"); hostiles = Layer("Hostiles"); overlay = Layer("Overlay");
             // Approach lanes and spawn points are fixed, so they are drawn once.
             foreach (var start in StrategyMatch.SpawnPoints)
             {
-                Line(structures, start, StrategyMatch.HomePosition, new Color(.15f, .22f, .27f), 7);
+                Line(structures, start, StrategyMatch.HomePosition, new Color(.78f, .70f, .47f), 7);
                 Place(Dot(structures, new Color(Hostile.r, Hostile.g, Hostile.b, .55f), 9).rectTransform, start);
             }
             for (int i = 0; i < frame.Length; i++) { frame[i] = Dot(overlay, new Color(1, 1, 1, .8f), 0); frame[i].name = "Camera frame"; }

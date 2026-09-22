@@ -19,18 +19,27 @@ namespace Engchanok.StrategyGame
         {
             if(canvas!=null) return;
             canvas=StrategyUI.Canvas(transform);
-            var bg=StrategyUI.Panel(canvas.transform,"Menu",Vector2.zero,Vector2.one,new Color(.015f,.03f,.05f,.18f));
-            var card=StrategyUI.Panel(bg.transform,"Mission briefing",new Vector2(.04f,.08f),new Vector2(.48f,.92f),StrategyUI.Ink);
-            StrategyUI.Rule(card.transform,new Vector2(.06f,.9f),new Vector2(.22f,.907f));
-            StrategyUI.Label(card.transform,"FRONTIER DEFENSE / SECTOR 07",new Vector2(.04f,.79f),new Vector2(.96f,.89f),21,StrategyUI.Accent);
-            StrategyUI.Label(card.transform,"OUTPOST",new Vector2(.035f,.63f),new Vector2(.98f,.8f),70);
-            StrategyUI.Label(card.transform,"STRATEGY / SURVIVAL",new Vector2(.04f,.55f),new Vector2(.95f,.64f),24,StrategyUI.Accent);
-            StrategyUI.Label(card.transform,"Build your perimeter. Hold the line.\n\nGather minerals, train soldiers, and research\nstronger defenses. Survive five enemy waves.",new Vector2(.04f,.33f),new Vector2(.96f,.55f),23);
-            StrategyUI.Button(card.transform,"DEPLOY / Play",new Vector2(.06f,.22f),new Vector2(.94f,.32f),()=>StrategySession.Play());
-            StrategyUI.Button(card.transform,"Learn to Play",new Vector2(.06f,.11f),new Vector2(.65f,.21f),()=>StrategySession.Play(true));
-            StrategyUI.Button(card.transform,"Quit",new Vector2(.67f,.11f),new Vector2(.94f,.21f),()=>Application.Quit());
-            StrategyUI.Label(card.transform,"01 MINE   /   02 FORTIFY   /   03 SURVIVE",new Vector2(.04f,.015f),new Vector2(.96f,.1f),18,StrategyUI.Accent);
-            StrategyUI.Label(bg.transform,"FORWARD OPERATING BASE\nSINGLE PLAYER / FIVE WAVES",new Vector2(.64f,.06f),new Vector2(.97f,.17f),22,StrategyUI.Accent);
+            var title=StrategyUI.Label(canvas.transform,"OUTPOST",new Vector2(.065f,.66f),new Vector2(.47f,.88f),108,StrategyUI.Paper);
+            title.fontStyle=FontStyle.BoldAndItalic;
+            title.rectTransform.localRotation=Quaternion.Euler(0,0,5);
+            var shadow=title.gameObject.AddComponent<UnityEngine.UI.Shadow>(); shadow.effectColor=new Color(.12f,.28f,.18f,.3f); shadow.effectDistance=new Vector2(2,-5);
+            var subtitle=StrategyUI.Label(canvas.transform,"A woodland survival story",new Vector2(.09f,.61f),new Vector2(.46f,.68f),26,StrategyUI.Paper);
+            subtitle.fontStyle=FontStyle.Bold;
+            var card=StrategyUI.Panel(canvas.transform,"Mission briefing",new Vector2(.10f,.20f),new Vector2(.38f,.55f),StrategyUI.Paper);
+            card.rectTransform.localRotation=Quaternion.Euler(0,0,4);
+            var play=StrategyUI.Button(card.transform,"Let's play",new Vector2(.09f,.60f),new Vector2(.91f,.84f),()=>StrategySession.Play());
+            var learn=StrategyUI.Button(card.transform,"Learn to play",new Vector2(.09f,.36f),new Vector2(.91f,.60f),()=>StrategySession.Play(true));
+            var quit=StrategyUI.Button(card.transform,"Exit",new Vector2(.09f,.12f),new Vector2(.91f,.36f),()=>Application.Quit());
+            foreach(var button in new[]{play,learn,quit})
+            {
+                button.GetComponentInChildren<UnityEngine.UI.Text>().fontSize=32;
+                button.transform.Find("Action edge").gameObject.SetActive(false);
+                if(button!=play) button.image.color=StrategyUI.Paper;
+            }
+            var hint=StrategyUI.Panel(canvas.transform,"Selection hint",new Vector2(.77f,.055f),new Vector2(.96f,.12f),StrategyUI.ButtonFill);
+            hint.raycastTarget=false;
+            var hintText=StrategyUI.Label(hint.transform,"Click to select",Vector2.zero,Vector2.one,22);
+            hintText.alignment=TextAnchor.MiddleCenter; hintText.fontStyle=FontStyle.Bold;
         }
         void Awake() { if(canvas!=null) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); } canvas=null; BuildUI(); StrategyUI.EnsureEventSystem(); }
         void Start() { Time.timeScale=1; Cursor.visible=true; Cursor.lockState=CursorLockMode.None; }

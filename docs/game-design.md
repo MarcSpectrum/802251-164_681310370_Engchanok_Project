@@ -142,15 +142,17 @@ Research is offered in the headquarters popup. Only one project runs at a time, 
 
 Pause freezes research; ending or restarting a mission stops or resets it. Values live in DefaultStrategy; existing economy and enemy tuning is preserved.
 
-## Art direction: stylized sci-fi
+## Art direction: woodland outpost
 
-The presentation uses refined geometric models and industrial details designed to remain readable from the tactical camera. Dark navy metal supports cyan allied soldiers and structures, amber workers, teal mineral deposits, and coral hostiles. Silhouettes distinguish cargo-carrying workers, armored rifle soldiers, low-profile runners, heavy brutes, the command center, hangar, turret, the squat relay pylon with its paired storage drums, the ranger post's watch platform, and the support bay's lit aid cross. Rangers carry a long barrel and optic, defenders a tower shield and bulwark plating, medics a glowing aid cross, engineers a welder and part rack. Color reinforces these shapes rather than providing the only distinction.
+The woodland clearing combines KayKit Adventurers for allied units, KayKit Skeletons for enemies, and KayKit Medieval Hexagon buildings with blue allied roofs. Workers use Rogue with an axe, soldiers use Knight with a crossbow, defenders use a larger Knight with sword and shield, rangers carry a bow, medics use Mage with a staff, and engineers use Barbarian with a tool. These are cosmetic role assignments; combat ranges, damage, healing, mining, navigation and costs are unchanged.
 
-Warm directional light and cool ambient light reveal form; luminous accents remain restrained. Ground plates, approach markers, and perimeter machinery establish an operational outpost. Scenery has no collision and does not alter navigation, gathering access, or construction footprints.
+Enemies use Minion for standard troops, a smaller Rogue for runners, Warrior variants for brutes/breakers/juggernauts, a crossbow Rogue for lancers and Mage for wardens. Equipment, hats and size distinguish roles. The free packs' shared medium rig supplies idle, run, attack, mining and support animations. The simulation controls all actions; presentation cannot issue commands and freezes when the match pauses or ends.
 
-The interface uses rounded cream paper panels, peach stitched borders, sage-green controls and dark blue lettering, with clear action states, separate minerals/supply/HQ/wave status, and training/research progress bars. The supply readout turns amber at the cap. The menu presents a cosmetic outpost diorama. Short tracers, impacts, expanding command rings, construction pulses, and destruction bursts communicate actions without obscuring targets. Sound cues distinguish orders, construction, research completion, and incoming waves; the sound toggle mutes them.
+The headquarters uses a castle, barracks use the matching barracks model, the ranger post uses an archery range, the support bay uses a church, the supply relay uses a market, and the turret uses a catapult tower. These visual replacements retain existing building names, functions, prices, range, supply, construction rules and navigation footprints. The world remains freely navigable; hexagonal terrain is not added.
 
-This polish milestone preserves the existing map, balance, five waves, research, tutorial, and controls. Effects follow the match clock, freeze on pause, and are cleared when a match ends or restarts. No camera shake, asset packs, or new dependencies are introduced.
+Selected Quaternius Toon Shooter props form small supply camps around the perimeter and menu: containers, crates, pallets, gas tanks, sandbags and lamps. Decoration has no colliders, ignores raycasts and stays outside construction and approach lanes. Warm light, rounded green crowns, blue flowers and mint haze retain the supplied reference's woodland direction.
+
+The interface uses rounded cream paper panels, peach stitched borders, sage-green controls and dark blue lettering. Short tracers, impacts, command rings and construction/destruction effects retain their existing meanings. Sound cues and all controls remain unchanged. The approved packs are CC0; credits and original licenses are under `Assets/StrategyGame/Art`. No package dependencies were added.
 
 ## Camera and live inspection
 

@@ -88,6 +88,8 @@ namespace Engchanok.StrategyGame.Editor
                     DetailEntity(obj.transform, kind, radius, metal, cyan, worker, red, beam);
                     var obstacle = obj.AddComponent<NavMeshObstacle>(); obstacle.shape = NavMeshObstacleShape.Capsule; obstacle.center = Vector3.up * 1.5f; obstacle.radius = radius; obstacle.height = 3; obstacle.carving = true; obstacle.carveOnlyStationary = false;
                 }
+                if (unit) OutpostArtBuilder.ReplaceUnitVisuals(obj, kind);
+                else MedievalBuildingBuilder.ReplaceVisuals(obj, kind, radius);
                 var saved = PrefabUtility.SaveAsPrefabAsset(obj, Root + "/Prefabs/" + kind + ".prefab");
                 prefabs[(int)kind] = saved.GetComponent<StrategyEntity>(); Object.DestroyImmediate(obj);
             }
@@ -254,7 +256,7 @@ namespace Engchanok.StrategyGame.Editor
         }
         static void DressBattlefield(float extent, Material ground, Material lane, Material metal, Material glow)
         {
-            ForestEnvironment.Dress(extent);
+            ForestEnvironment.Dress(extent); OutpostArtBuilder.Dress(false);
         }
         static void BuildDiorama(Material ground, Material glow)
         {
@@ -267,10 +269,11 @@ namespace Engchanok.StrategyGame.Editor
             {
                 var prefab=AssetDatabase.LoadAssetAtPath<StrategyEntity>(Root+"/Prefabs/"+kinds[i]+".prefab");
                 var display=new GameObject(kinds[i]+" display").transform; display.SetParent(root,false); display.position=positions[i];
+                if (StrategyEntity.IsUnitKind(kinds[i])) display.localRotation=Quaternion.Euler(0,180,0);
                 // Copy only the render hierarchy: the menu has no entities, agents or gameplay scripts.
                 foreach(Transform child in prefab.transform) Object.Instantiate(child.gameObject,display,false);
             }
-            ForestEnvironment.Dress(40, true);
+            ForestEnvironment.Dress(40, true); OutpostArtBuilder.Dress(true);
         }
         static Material Material(string name, Color color, bool unlit = false)
         {

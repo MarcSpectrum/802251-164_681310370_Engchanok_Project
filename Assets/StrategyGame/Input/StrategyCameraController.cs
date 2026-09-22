@@ -16,9 +16,9 @@ namespace Engchanok.StrategyGame
         public static Bounds VisualBounds(Transform root)
         {
             var result = new Bounds(root.position + Vector3.up, Vector3.one * 2); bool found = false;
-            foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>())
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>())
             {
-                if (!renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                if (!(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                 if (!found) { result = renderer.bounds; found = true; } else result.Encapsulate(renderer.bounds);
             }
             return result;

@@ -769,6 +769,11 @@ namespace Engchanok.StrategyGame.Tests
                 SendPointer(commander,mouse,new MouseState{position=point,buttons=1});
                 SendPointer(commander,mouse,new MouseState{position=point});
                 Assert.IsFalse(commander.Targeting); Assert.Less(Vector3.Distance(new Vector3(0,0,-5),soldier.OrderDestination),.5f);
+                // A tall friendly roof must not move the destination of a contextual ground command.
+                point=commander.view.WorldToScreenPoint(new Vector3(0,0,-3));
+                SendPointer(commander,mouse,new MouseState{position=point,buttons=2});
+                SendPointer(commander,mouse,new MouseState{position=point});
+                Assert.Less(Vector3.Distance(new Vector3(0,0,-3),soldier.OrderDestination),.5f);
                 commander.ClearSelection(); var worker=match.Entities.First(e=>e.kind==EntityKind.Worker); commander.Select(worker);
                 commander.BeginOrder(UnitOrder.Gather);
                 SendPointer(commander,mouse,new MouseState{position=point,buttons=1});

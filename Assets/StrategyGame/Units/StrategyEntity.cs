@@ -22,6 +22,9 @@ namespace Engchanok.StrategyGame
         public MineralDeposit MiningTarget { get; private set; }
         public StrategyEntity AttackTarget { get; private set; }
         StrategyMatch match;
+        StrategyCharacterView characterView;
+        [HideInInspector] public float buildingMarkerHeight = 4;
+        public float MarkerHeight => characterView != null ? characterView.markerHeight : IsUnit ? 2.3f : buildingMarkerHeight;
         float attackTimer, mineTimer, stuckTimer, supportTimer, repairDebt;
         Vector3 lastPosition;
         public UnitOrder Order { get; private set; }
@@ -47,6 +50,7 @@ namespace Engchanok.StrategyGame
         public void Initialize(StrategyMatch owner)
         {
             match = owner; Health = new HealthModel(match.settings.Health(kind));
+            characterView = GetComponentInChildren<StrategyCharacterView>();
             Agent = GetComponent<NavMeshAgent>();
             if (Agent != null) Agent.speed = match.settings.Speed(kind);
             lastPosition = transform.position;

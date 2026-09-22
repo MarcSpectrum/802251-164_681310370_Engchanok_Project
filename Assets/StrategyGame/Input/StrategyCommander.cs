@@ -163,8 +163,23 @@ namespace Engchanok.StrategyGame
         {
             deposit = null;
             if (MinimapPoint(out point)) { deposit = NearestDeposit(point, 4); return true; }
-            if (PointerOverUI || !Physics.Raycast(view.ScreenPointToRay(Pointer), out var hit, 300)) return false;
-            point = hit.point; deposit = hit.collider.GetComponentInParent<MineralDeposit>(); return true;
+            if (PointerOverUI) return false;
+            var ray = view.ScreenPointToRay(Pointer);
+            if (TargetingOrder == UnitOrder.Gather)
+            {
+                if (!Physics.Raycast(ray, out var hit, 300)) return false;
+                point = hit.point; deposit = hit.collider.GetComponentInParent<MineralDeposit>(); return true;
+            }
+            return TryGroundPoint(ray, out point);
+        }
+        // Destination orders target the flat battlefield, not a tall roof intercepted by the selection ray.
+        bool TryGroundPoint(Ray ray, out Vector3 point)
+        {
+            point = default;
+            var plane = new Plane(Vector3.up, Vector3.zero);
+            if (!plane.Raycast(ray, out float distance) || distance > 300) return false;
+            point = ray.GetPoint(distance);
+            return Mathf.Abs(point.x) <= match.settings.mapHalfSize && Mathf.Abs(point.z) <= match.settings.mapHalfSize;
         }
         static MineralDeposit NearestDeposit(Vector3 point, float range)
         {
@@ -275,8 +290,17 @@ namespace Engchanok.StrategyGame
             if (mouse.rightButton.wasPressedThisFrame)
             {
                 if (MinimapPoint(out var mapTarget)) CommandAt(mapTarget, null, null);
-                else if (!PointerOverUI && Physics.Raycast(view.ScreenPointToRay(Pointer), out var commandHit, 300))
-                    CommandAt(commandHit.point, commandHit.collider.GetComponentInParent<StrategyEntity>(), commandHit.collider.GetComponentInParent<MineralDeposit>());
+                else if (!PointerOverUI)
+                {
+                    var ray = view.ScreenPointToRay(Pointer);
+                    if (TryGroundPoint(ray, out var point))
+                    {
+                        StrategyEntity target = null; MineralDeposit deposit = null;
+                        if (Physics.Raycast(ray, out var hit, 300))
+                        { target = hit.collider.GetComponentInParent<StrategyEntity>(); deposit = hit.collider.GetComponentInParent<MineralDeposit>(); }
+                        CommandAt(point, target, deposit);
+                    }
+                }
             }
         }
         public void ClearSelection() { foreach (var e in Selection) if (e != null) e.Selected = false; Selection.Clear(); InspectedObject = null; PopupOpen = false; }

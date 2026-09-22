@@ -476,7 +476,7 @@ namespace Engchanok.StrategyGame
                     var fill=StrategyUI.Panel(bar.transform,"Fill",Vector2.zero,Vector2.one,e.IsEnemy?new Color(1,.3f,.3f):new Color(.35f,.85f,.45f)); fill.raycastTarget=false;
                     healthBars[e]=bar;
                 }
-                Vector3 point=commander.view.WorldToScreenPoint(e.transform.position+Vector3.up*(e.IsUnit?2.3f:4));
+                Vector3 point=commander.view.WorldToScreenPoint(e.transform.position+Vector3.up*e.MarkerHeight);
                 bar.gameObject.SetActive(match.Running && point.z>0 && point.y>Screen.height*.085f && point.y<Screen.height*.895f && (e.Selected || e.Health.Current<e.Health.Maximum));
                 var r=bar.rectTransform; r.anchoredPosition=new Vector2(point.x,point.y)/canvas.scaleFactor; r.sizeDelta=new Vector2(64,7);
                 ((RectTransform)r.GetChild(0)).anchorMax=new Vector2(e.Health.Current/e.Health.Maximum,1);

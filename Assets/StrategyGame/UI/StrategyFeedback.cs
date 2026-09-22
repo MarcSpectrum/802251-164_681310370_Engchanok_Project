@@ -29,7 +29,7 @@ namespace Engchanok.StrategyGame
             return line;
         }
         public void Hit() { flash = .12f; StrategyEffects.For(match).Emit(transform.position+Vector3.up, transform.position+Vector3.up*1.6f, entity.IsEnemy ? new Color(1,.35f,.3f) : Color.cyan, .16f, .18f); }
-        public void Fire() { StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f, transform.position+Vector3.up*1.8f, new Color(1,.8f,.35f), .09f, .25f); }
+        public void Fire() { GetComponentInChildren<StrategyCharacterView>()?.PlayAction(); StrategyEffects.For(match).Emit(transform.position+Vector3.up*1.5f, transform.position+Vector3.up*1.8f, new Color(1,.8f,.35f), .09f, .25f); }
         void Update()
         {
             ring.enabled = entity.Selected;
